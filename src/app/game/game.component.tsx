@@ -21,9 +21,13 @@ const GameComponent = ({ board }: { board: Board }) => {
         parent: phaserGameRef.current,
       };
       phaserGameRef.current = new Phaser.Game(config);
+      phaserGameRef.current.scene.start("ChessScene", { board });
     };
 
     initializeGame();
+    // if (board) {
+    //   phaserGameRef.current.scene.drawBoard(board);
+    // }
     return () => {
       if (phaserGameRef.current) {
         phaserGameRef.current.destroy(true);
