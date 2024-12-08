@@ -26,9 +26,6 @@ const GameComponent = ({
     }
     componentInited = true;
 
-    wsClientInstance.subscribeOnOpponentTurn((turn: Turn) => {
-      console.log(turn);
-    });
     const initializeGame = async () => {
       const config: Phaser.Types.Core.GameConfig = {
         type: Phaser.AUTO,
