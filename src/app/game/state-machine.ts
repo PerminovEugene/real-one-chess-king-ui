@@ -46,6 +46,9 @@ export class StateMachine {
   private state = GameStateName.Idle;
 
   mapCoordsToChessFormat(x: number, y: number): string {
+    if (this.gameInfo.yourColor === Color.white) {
+      return `${String.fromCharCode(97 + (7 - x))}${y + 1}`;
+    }
     return `${String.fromCharCode(97 + x)}${y}`;
   }
 

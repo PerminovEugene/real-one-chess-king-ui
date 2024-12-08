@@ -29,8 +29,8 @@ const GameComponent = ({
     const initializeGame = async () => {
       const config: Phaser.Types.Core.GameConfig = {
         type: Phaser.AUTO,
-        width: 640,
-        height: 640,
+        width: 670,
+        height: 670,
         scene: [ChessScene],
         parent: phaserGameRef.current,
       };
