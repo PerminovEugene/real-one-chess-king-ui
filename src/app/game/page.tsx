@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import wsClientInstance from "../../socket/index";
-import { Board } from "@real_one_chess_king/game-logic";
 import dynamic from "next/dynamic";
 
 const DynamicGameComponent = dynamic(() => import("./game.component"), {
@@ -11,7 +10,7 @@ const DynamicGameComponent = dynamic(() => import("./game.component"), {
 
 export default function GamePage() {
   const [isConnected, setIsConnected] = useState(false);
-  const [board, setBoard] = useState<Board | null>(null);
+  const [gameData, setGameData] = useState<any>(null);
   const [inQueue, setInQueue] = useState(false);
 
   useEffect(() => {
@@ -24,12 +23,12 @@ export default function GamePage() {
   }, []);
 
   const findGame = () => {
-    wsClientInstance.sendFindGame(setBoard, setInQueue);
+    wsClientInstance.sendFindGame(setGameData, setInQueue);
   };
 
-  const showFindButton = isConnected && !board && !inQueue;
-  const showInQueueMessage = isConnected && !board && inQueue;
-  const showBoard = isConnected && board && !inQueue;
+  const showFindButton = isConnected && !gameData && !inQueue;
+  const showInQueueMessage = isConnected && !gameData && inQueue;
+  const showBoard = isConnected && gameData && !inQueue;
 
   return (
     <div className="grid items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
@@ -43,7 +42,7 @@ export default function GamePage() {
         </button>
       )}
       {showInQueueMessage && <p>Waiting for opponent...</p>}
-      {showBoard && <DynamicGameComponent board={board} />}
+      {showBoard && <DynamicGameComponent gameData={gameData} />}
     </div>
   );
 }
