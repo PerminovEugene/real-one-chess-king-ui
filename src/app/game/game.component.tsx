@@ -47,6 +47,8 @@ const GameComponent = ({
     //   phaserGameRef.current.scene.drawBoard(board);
     // }
     return () => {
+      // componentInited = false;
+      console.log("---<");
       if (phaserGameRef.current) {
         phaserGameRef.current.scene.stop("ChessScene");
         phaserGameRef.current.destroy(true);

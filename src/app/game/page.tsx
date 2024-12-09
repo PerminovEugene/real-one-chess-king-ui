@@ -10,8 +10,14 @@ const DynamicGameComponent = dynamic(() => import("./game.component"), {
 
 export default function GamePage() {
   const [isConnected, setIsConnected] = useState(false);
+  const [opponentDisconnected, setOpponentDisconnected] = useState(false);
   const [gameData, setGameData] = useState<any>(null);
   const [inQueue, setInQueue] = useState(false);
+
+  const onOpponentDisconnected = () => {
+    setGameData(null);
+    setOpponentDisconnected(true);
+  };
 
   useEffect(() => {
     const initConnection = async () => {
@@ -20,19 +26,28 @@ export default function GamePage() {
     };
 
     initConnection();
+    wsClientInstance.subscribeOnOpponentDisconnected(onOpponentDisconnected);
   }, []);
 
   const findGame = () => {
+    setOpponentDisconnected(false);
     wsClientInstance.sendFindGame(setGameData, setInQueue);
   };
 
   const showFindButton = isConnected && !gameData && !inQueue;
   const showInQueueMessage = isConnected && !gameData && inQueue;
   const showBoard = isConnected && gameData && !inQueue;
+  const showOponentDisconnected = isConnected && opponentDisconnected;
 
   return (
     <div className="grid items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
       {!isConnected && <p>Connecting...</p>}
+      {showOponentDisconnected && (
+        <div>
+          <p>Opponent disconnected :| But You won! :D</p>
+          <p>Let's try again</p>
+        </div>
+      )}
       {showFindButton && (
         <button
           onClick={findGame}

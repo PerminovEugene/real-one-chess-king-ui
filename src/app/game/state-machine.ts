@@ -9,6 +9,8 @@ import {
   Player,
   TurnType,
   Piece,
+  fromChessToLogic,
+  fromLogicToChess,
 } from "@real_one_chess_king/game-logic";
 import { StateMachineEvents, TileClickedPayload, UiEvent } from "./events";
 import socket from "../../socket/index";
@@ -99,11 +101,8 @@ export class StateMachine {
     const turn: Turn = {
       color: this.gameInfo.yourColor,
       type: TurnType.Move,
-      from: this.mapCoordsToChessFormat(
-        this.selectedPiece![0],
-        this.selectedPiece![1]
-      ),
-      to: this.mapCoordsToChessFormat(x, y),
+      from: fromLogicToChess(this.selectedPiece![0], this.selectedPiece![1]),
+      to: fromLogicToChess(x, y),
       timestamp: new Date().toISOString(),
     };
     console.log(turn);
@@ -149,11 +148,15 @@ export class StateMachine {
     );
     socket.subscribeOnOpponentTurn((turn: Turn) => {
       // this.game?.processTurn(turn);
-      const fromX = this.xCharToIndex(turn.from);
-      const fromY = this.yCharToIndex(turn.from);
 
-      const toX = this.xCharToIndex(turn.to);
-      const toY = this.yCharToIndex(turn.to);
+      const [fromX, fromY] = fromChessToLogic(turn.from);
+      const [toX, toY] = fromChessToLogic(turn.to);
+
+      // const fromX = this.xCharToIndex(turn.from);
+      // const fromY = this.yCharToIndex(turn.from);
+
+      // const toX = this.xCharToIndex(turn.to);
+      // const toY = this.yCharToIndex(turn.to);
 
       const fromPiece = this.board.squares[fromY][fromX].popPiece() as Piece;
       const toCell = this.board.squares[toY][toX];
@@ -169,8 +172,8 @@ export class StateMachine {
       this.sceneUpdatesEventEmitter.dispatchEvent(
         new CustomEvent(StateMachineEvents.pieceMoved, {
           detail: {
-            from: [this.xCharToIndex(turn.from), this.yCharToIndex(turn.from)],
-            to: [this.xCharToIndex(turn.to), this.yCharToIndex(turn.to)],
+            from: [fromX, fromY],
+            to: [toX, toY],
           },
         })
       );

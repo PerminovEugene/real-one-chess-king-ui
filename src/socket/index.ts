@@ -48,6 +48,12 @@ class WSClient {
     });
   }
 
+  subscribeOnOpponentDisconnected(onOpponentDisconnect: Function) {
+    socket.on(WSServerGameEvent.OpponentDisconnected, (data) => {
+      onOpponentDisconnect();
+    });
+  }
+
   sendTurn(turn: Turn) {
     socket.emit(WSClientGameEvent.Turn, turn);
   }

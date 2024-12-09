@@ -4,16 +4,10 @@ import {
   Board,
   BoardMeta,
   Color,
-  Direction,
-  Game,
-  Piece,
   PieceType,
-  Player,
-  Turn,
 } from "@real_one_chess_king/game-logic";
 import Phaser from "phaser";
 import { ClassUiToLogicconverter } from "./ui-to-logic";
-import { EventEmitter } from "events";
 import { StateMachine } from "./state-machine";
 import { StateMachineEvents } from "./events";
 
@@ -46,7 +40,6 @@ export class ChessScene extends Phaser.Scene {
 
   private board?: Board;
   private gameInfo: any = {};
-  // private gameData?: Game | undefined;
 
   private uiToLogicConverter?: ClassUiToLogicconverter;
   private userActionsEventEmitter: EventTarget = new EventTarget();
@@ -142,7 +135,7 @@ export class ChessScene extends Phaser.Scene {
   renderBoard() {
     for (let row = 0; row < this.boardSize; row++) {
       for (let col = 0; col < this.boardSize; col++) {
-        const isDark = (row + col) % 2 === 0;
+        const isDark = (row + col) % 2 === 1;
         const tileKey = isDark ? "dark" : "light";
 
         const x = col * this.tileSize + this.tileSize / 2 + this.offset;
@@ -160,9 +153,6 @@ export class ChessScene extends Phaser.Scene {
     return `${x}${y}`;
   }
 
-  private needReverse() {
-    return this.gameInfo.yourColor === Color.white;
-  }
   private needReverseX() {
     return this.gameInfo.yourColor === Color.white;
   }
@@ -174,18 +164,11 @@ export class ChessScene extends Phaser.Scene {
     if (!this.board) {
       throw new Error("Board is not initialized in the scene");
     }
-    // const needReverse = this.gameInfo.yourColor === Color.white;
-
-    // const squares = needReverse
-    //   ? this.board.squares.slice().reverse()
-    //   : this.board.squares;
 
     this.board.squares.forEach((row, ri) => {
-      // const processedRow = this.needReverse() ? row.slice().reverse() : row;
       const rowIndex: number = this.needReverseY() ? 7 - ri : ri;
 
       row.forEach((cell, ci) => {
-        // const rowIndex: number = needReverse ? 7 - ri : ri;
         const colIndex: number = this.needReverseX() ? 7 - ci : ci;
 
         const piece = cell.getPiece();
@@ -193,16 +176,10 @@ export class ChessScene extends Phaser.Scene {
           const x = colIndex * this.tileSize + this.tileSize / 2 + this.offset;
           const y = rowIndex * this.tileSize + this.tileSize / 2;
           const pieceGameObject = this.add
-            .text(
-              x,
-              y,
-              // [colIndex].join(","),
-              this.typeToAscii(piece.type, piece.color),
-              {
-                fontSize: "64px",
-                color: piece.color === "white" ? "#FFF" : "#000",
-              }
-            )
+            .text(x, y, this.typeToAscii(piece.type, piece.color), {
+              fontSize: "64px",
+              color: piece.color === "white" ? "#FFF" : "#000",
+            })
             .setOrigin(0.5);
           this.pieceGameObjects[this.coordToMapkey(ci, ri)] = pieceGameObject;
         }
@@ -240,9 +217,6 @@ export class ChessScene extends Phaser.Scene {
       }
       const canvasX = x * this.tileSize + this.tileSize / 2 + this.offset;
       const canvasY = y * this.tileSize + this.tileSize / 2;
-      // this.add
-      //   .image(x, y, "highlight")
-      //   .setDisplaySize(this.tileSize, this.tileSize);
       const availableMoveObj = this.add.rectangle(
         canvasX,
         canvasY,
@@ -264,12 +238,7 @@ export class ChessScene extends Phaser.Scene {
     const [fromX, fromY] = from;
     const [toX, toY] = to;
 
-    console.log("from", from, "to", to);
-
-    const processedFromY = this.needReverseY() ? 7 - fromY : fromY;
     const processedToY = this.needReverseY() ? 7 - toY : toY;
-
-    const processedFromX = this.needReverseX() ? 7 - fromX : fromX;
     const processedToX = this.needReverseX() ? 7 - toX : toX;
 
     const fromMovedObjectKey = this.coordToMapkey(fromX, fromY);
