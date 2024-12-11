@@ -49,6 +49,7 @@ class WSClient {
   }
 
   subscribeOnOpponentDisconnected(onOpponentDisconnect: Function) {
+    console.log("Opponent disconnect");
     socket.on(WSServerGameEvent.OpponentDisconnected, (data) => {
       onOpponentDisconnect();
     });

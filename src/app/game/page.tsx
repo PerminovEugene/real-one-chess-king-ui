@@ -8,6 +8,25 @@ const DynamicGameComponent = dynamic(() => import("./game.component"), {
   loading: () => <p>Loading...</p>,
 });
 
+export function NotificationWrapper({
+  isConnected,
+  showOponentDisconnected,
+  showInQueueMessage,
+}: any) {
+  return (
+    <div>
+      {!isConnected && <p>Connecting...</p>}
+      {showOponentDisconnected && (
+        <div>
+          <p>Opponent disconnected :| But You won! :D</p>
+          <p>Let's try again</p>
+        </div>
+      )}
+      {showInQueueMessage && <p>Waiting for opponent...</p>}
+    </div>
+  );
+}
+
 export default function GamePage() {
   const [isConnected, setIsConnected] = useState(false);
   const [opponentDisconnected, setOpponentDisconnected] = useState(false);
@@ -20,6 +39,7 @@ export default function GamePage() {
   };
 
   useEffect(() => {
+    console.log("CONNECTING");
     const initConnection = async () => {
       await wsClientInstance.connect();
       setIsConnected(true);
@@ -41,13 +61,6 @@ export default function GamePage() {
 
   return (
     <div className="grid items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      {!isConnected && <p>Connecting...</p>}
-      {showOponentDisconnected && (
-        <div>
-          <p>Opponent disconnected :| But You won! :D</p>
-          <p>Let's try again</p>
-        </div>
-      )}
       {showFindButton && (
         <button
           onClick={findGame}
@@ -56,8 +69,13 @@ export default function GamePage() {
           Find Game
         </button>
       )}
-      {showInQueueMessage && <p>Waiting for opponent...</p>}
+      <NotificationWrapper
+        isConnected={isConnected}
+        showOponentDisconnected={showOponentDisconnected}
+        showInQueueMessage={showInQueueMessage}
+      />
       {showBoard && <DynamicGameComponent gameData={gameData} />}
     </div>
   );
 }
+GamePage.strictMode = false;

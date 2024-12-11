@@ -11,6 +11,7 @@ import {
   Piece,
   fromChessToLogic,
   fromLogicToChess,
+  AvailableMove,
 } from "@real_one_chess_king/game-logic";
 import { StateMachineEvents, TileClickedPayload, UiEvent } from "./events";
 import socket from "../../socket/index";
@@ -41,8 +42,7 @@ export class StateMachine {
     return this.board;
   }
 
-  private boardSize = 8;
-  private availableMoves: [number, number][] = [];
+  private availableMoves: AvailableMove[] = [];
   private game: Game | undefined;
 
   private state = GameStateName.Idle;
@@ -66,9 +66,16 @@ export class StateMachine {
 
         const pieceRules = selectedPiece.movementRules;
         pieceRules?.forEach((rule) => {
-          const ruleMoves = rule.availableMoves(x, y, this.board!.squares);
+          console.log("---->", rule, this.game?.turns);
+          const ruleMoves = rule.availableMoves(
+            x,
+            y,
+            this.board!.squares,
+            this.game?.turns as Turn[]
+          );
           this.availableMoves.push(...ruleMoves);
         });
+        console.log(pieceRules);
 
         this.sceneUpdatesEventEmitter.dispatchEvent(
           new CustomEvent(StateMachineEvents.showAvailableMoves, {
@@ -84,31 +91,42 @@ export class StateMachine {
     }
   }
 
-  includesArray = function (
-    source: [number, number][],
+  findMoveInAvailableMoves = function (
+    source: AvailableMove[],
     target: [number, number]
-  ) {
-    return source.some(
+  ): AvailableMove | undefined {
+    return source.find(
       (item) =>
         Array.isArray(item) &&
         Array.isArray(target) &&
         item.length === target.length &&
-        item.every((val, index) => val === target[index])
+        item[0] === target[0] &&
+        item[1] === target[1]
     );
   };
 
   private handleTileClickedInPieceSelectedState(x: number, y: number) {
+    const [fromX, fromY] = this.selectedPiece!;
     const turn: Turn = {
       color: this.gameInfo.yourColor,
       type: TurnType.Move,
-      from: fromLogicToChess(this.selectedPiece![0], this.selectedPiece![1]),
-      to: fromLogicToChess(x, y),
+      from: this.selectedPiece!,
+      to: [x, y],
       timestamp: new Date().toISOString(),
+      pieceType: this.board.squares[fromY][fromX].getPiece()!.type,
+      affects: [],
     };
-    console.log(turn);
     this.state = GameStateName.Idle;
 
-    if (!this.includesArray(this.availableMoves, [x, y])) {
+    console.log("Available moves: ", this.availableMoves);
+
+    const move = this.availableMoves.find(
+      (move) => move[0] === x && move[1] === y
+    );
+    // const move = this.findMoveInAvailableMoves(this.availableMoves, [x, y]);
+
+    console.log("Found move: ", move);
+    if (!move) {
       this.sceneUpdatesEventEmitter.dispatchEvent(
         new CustomEvent(StateMachineEvents.hideAvailableMoves)
       );
@@ -117,6 +135,11 @@ export class StateMachine {
     }
     this.availableMoves = [];
 
+    console.log("Move the piece from row: ", fromY, " col: ", fromX, turn);
+
+    turn.affects = move[2];
+    console.log("turn: ", turn);
+
     this.game?.processTurn(turn);
     socket.sendTurn(turn);
     this.sceneUpdatesEventEmitter.dispatchEvent(
@@ -124,6 +147,7 @@ export class StateMachine {
         detail: {
           from: [this.selectedPiece![0], this.selectedPiece![1]],
           to: [x, y],
+          affects: move[2],
         },
       })
     );
@@ -147,16 +171,9 @@ export class StateMachine {
       }
     );
     socket.subscribeOnOpponentTurn((turn: Turn) => {
-      // this.game?.processTurn(turn);
-
-      const [fromX, fromY] = fromChessToLogic(turn.from);
-      const [toX, toY] = fromChessToLogic(turn.to);
-
-      // const fromX = this.xCharToIndex(turn.from);
-      // const fromY = this.yCharToIndex(turn.from);
-
-      // const toX = this.xCharToIndex(turn.to);
-      // const toY = this.yCharToIndex(turn.to);
+      console.log("Opponent turn");
+      const [fromX, fromY] = turn.from;
+      const [toX, toY] = turn.to;
 
       const fromPiece = this.board.squares[fromY][fromX].popPiece() as Piece;
       const toCell = this.board.squares[toY][toX];
@@ -174,15 +191,13 @@ export class StateMachine {
           detail: {
             from: [fromX, fromY],
             to: [toX, toY],
+            affects: turn.affects,
           },
         })
       );
     });
   }
 
-  // todo reuse from board
-  public xCharToIndex = (char: string) => char.charCodeAt(0) - 97;
-  public yCharToIndex = (char: string) => parseInt(char[1]);
   private updateGameNextTurn() {
     this.game!.nextTurnColor =
       this.game!.nextTurnColor === Color.black ? Color.white : Color.black;

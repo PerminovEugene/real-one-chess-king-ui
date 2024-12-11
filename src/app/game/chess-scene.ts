@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  Affect,
+  AffectType,
   Board,
   BoardMeta,
   Color,
@@ -48,7 +50,7 @@ export class ChessScene extends Phaser.Scene {
   private availableMoveObjects: Phaser.GameObjects.Rectangle[] = [];
   private stateMachine?: StateMachine;
 
-  init(data: { boardMeta: BoardMeta; gameInfo: any }) {
+  create(data: { boardMeta: BoardMeta; gameInfo: any }) {
     this.gameInfo = data.gameInfo; // Store the game info
     this.uiToLogicConverter = new ClassUiToLogicconverter(
       this.tileSize,
@@ -87,6 +89,7 @@ export class ChessScene extends Phaser.Scene {
     );
 
     this.input.on("pointerdown", this.uiToLogicConverter.handleBoardClick);
+    this.render();
   }
 
   preload() {
@@ -94,8 +97,13 @@ export class ChessScene extends Phaser.Scene {
     this.load.image("dark", "dark_tile.png");
   }
 
-  create() {
-    this.render();
+  shutdown() {
+    // Cleanup resources when the scene is stopped
+    console.log("ChessScene shutdown");
+  }
+
+  destroy() {
+    console.log("ChessScene destroyed");
   }
 
   render() {
@@ -233,7 +241,15 @@ export class ChessScene extends Phaser.Scene {
     this.availableMoveObjects = [];
   }
 
-  movePiece({ from, to }: { from: [number, number]; to: [number, number] }) {
+  movePiece = ({
+    from,
+    to,
+    affects,
+  }: {
+    from: [number, number];
+    to: [number, number];
+    affects: Affect[];
+  }) => {
     this.destoryAvailableMoves();
     const [fromX, fromY] = from;
     const [toX, toY] = to;
@@ -243,6 +259,7 @@ export class ChessScene extends Phaser.Scene {
 
     const fromMovedObjectKey = this.coordToMapkey(fromX, fromY);
     const movedObject = this.pieceGameObjects[fromMovedObjectKey];
+
     const toMovedObjectKey = this.coordToMapkey(toX, toY);
     const killedObject = this.pieceGameObjects[toMovedObjectKey];
     if (killedObject) {
@@ -252,13 +269,29 @@ export class ChessScene extends Phaser.Scene {
     const canvasX =
       processedToX * this.tileSize + this.tileSize / 2 + this.offset;
     const canvasY = processedToY * this.tileSize + this.tileSize / 2;
+
     movedObject.setX(canvasX);
     movedObject.setY(canvasY);
     movedObject.setOrigin(0.5, 0.5);
 
     delete this.pieceGameObjects[fromMovedObjectKey];
     this.pieceGameObjects[toMovedObjectKey] = movedObject;
-  }
+
+    console.log("affects", affects);
+    if (affects && affects.length > 0) {
+      affects.forEach((affect) => {
+        const [x, y] = affect.from;
+        // const processedY = this.needReverseY() ? 7 - y : y;
+        // const processedX = this.needReverseX() ? 7 - x : x;
+
+        if (affect.type === AffectType.kill) {
+          const fromMovedObjectKey = this.coordToMapkey(x, y);
+          this.pieceGameObjects[fromMovedObjectKey].destroy();
+          delete this.pieceGameObjects[fromMovedObjectKey];
+        }
+      });
+    }
+  };
 
   typeToAscii(type: PieceType, color: Color) {
     return colorToTypeToAscii[color][type];
