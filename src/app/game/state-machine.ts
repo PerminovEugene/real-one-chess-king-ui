@@ -12,6 +12,7 @@ import {
   fromChessToLogic,
   fromLogicToChess,
   AvailableMove,
+  AffectType,
 } from "@real_one_chess_king/game-logic";
 import { StateMachineEvents, TileClickedPayload, UiEvent } from "./events";
 import socket from "../../socket/index";
@@ -66,13 +67,14 @@ export class StateMachine {
 
         const pieceRules = selectedPiece.movementRules;
         pieceRules?.forEach((rule) => {
-          console.log("---->", rule, this.game?.turns);
           const ruleMoves = rule.availableMoves(
             x,
             y,
             this.board!.squares,
             this.game?.turns as Turn[]
           );
+          console.log("--rule found moves-->", x, y, ruleMoves, rule);
+
           this.availableMoves.push(...ruleMoves);
         });
         console.log(pieceRules);
@@ -126,14 +128,13 @@ export class StateMachine {
     // const move = this.findMoveInAvailableMoves(this.availableMoves, [x, y]);
 
     console.log("Found move: ", move);
+    this.availableMoves = [];
     if (!move) {
       this.sceneUpdatesEventEmitter.dispatchEvent(
         new CustomEvent(StateMachineEvents.hideAvailableMoves)
       );
-      this.availableMoves = [];
       return;
     }
-    this.availableMoves = [];
 
     console.log("Move the piece from row: ", fromY, " col: ", fromX, turn);
 
@@ -185,6 +186,26 @@ export class StateMachine {
 
       this.game?.turns.push(turn);
       this.updateGameNextTurn();
+
+      const affects = turn.affects;
+      if (affects) {
+        for (const affect of affects) {
+          const [affectFromX, affectFromY] = affect.from;
+          if (affect.type === AffectType.kill) {
+            this.board.squares[affectFromY][affectFromX].popPiece();
+          } else if (affect.type === AffectType.move && affect.to) {
+            const [affectToX, affectToY] = affect.to;
+            const piece =
+              this.board.squares[affectFromY][affectFromX].popPiece();
+            if (!piece) {
+              throw new Error(
+                "Piece from affect.from is not found on the board"
+              );
+            }
+            this.board.squares[affectToY][affectToX].putPiece(piece);
+          }
+        }
+      }
 
       this.sceneUpdatesEventEmitter.dispatchEvent(
         new CustomEvent(StateMachineEvents.pieceMoved, {

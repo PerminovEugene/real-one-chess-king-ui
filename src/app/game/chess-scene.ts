@@ -254,6 +254,8 @@ export class ChessScene extends Phaser.Scene {
     const [fromX, fromY] = from;
     const [toX, toY] = to;
 
+    console.log("--------->", from, to, affects);
+
     const processedToY = this.needReverseY() ? 7 - toY : toY;
     const processedToX = this.needReverseX() ? 7 - toX : toX;
 
@@ -280,14 +282,37 @@ export class ChessScene extends Phaser.Scene {
     console.log("affects", affects);
     if (affects && affects.length > 0) {
       affects.forEach((affect) => {
-        const [x, y] = affect.from;
-        // const processedY = this.needReverseY() ? 7 - y : y;
-        // const processedX = this.needReverseX() ? 7 - x : x;
+        const [aFromX, aFromY] = affect.from;
 
         if (affect.type === AffectType.kill) {
-          const fromMovedObjectKey = this.coordToMapkey(x, y);
+          const fromMovedObjectKey = this.coordToMapkey(aFromX, aFromY);
           this.pieceGameObjects[fromMovedObjectKey].destroy();
           delete this.pieceGameObjects[fromMovedObjectKey];
+        }
+        if (affect.type === AffectType.move) {
+          console.log("handle move");
+          if (!affect.to) {
+            throw new Error("Affect type move should have to field");
+          }
+          const [aToX, aToY] = affect.to;
+          const processedToY = this.needReverseY() ? 7 - aToY : aToY;
+          const processedToX = this.needReverseX() ? 7 - aToX : aToX;
+
+          const aFromMovedObjectKey = this.coordToMapkey(aFromX, aFromY);
+          const aToMovedObjectKey = this.coordToMapkey(aToX, aToY);
+
+          const canvasX =
+            processedToX * this.tileSize + this.tileSize / 2 + this.offset;
+          const canvasY = processedToY * this.tileSize + this.tileSize / 2;
+
+          const movedObject = this.pieceGameObjects[aFromMovedObjectKey];
+
+          movedObject.setX(canvasX);
+          movedObject.setY(canvasY);
+          movedObject.setOrigin(0.5, 0.5);
+
+          this.pieceGameObjects[aToMovedObjectKey] = movedObject;
+          delete this.pieceGameObjects[aFromMovedObjectKey];
         }
       });
     }
