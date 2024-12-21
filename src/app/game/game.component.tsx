@@ -5,14 +5,20 @@ import { Board, Color } from "@real_one_chess_king/game-logic";
 import Phaser from "phaser";
 import { ChessScene } from "./chess-scene";
 
-const GameComponent = ({
-  gameData: { board, gameInfo },
-}: {
+const GameComponent = (p: {
   gameData: {
-    board: Board;
+    boardMeta: Board;
     gameInfo: any;
   };
 }) => {
+  console.log("-----p", p, p.gameData, p.gameData.boardMeta);
+  console.log("-----p.gameData", p.gameData);
+  console.log("-----p", p.gameData.boardMeta);
+
+  const {
+    gameData: { boardMeta, gameInfo },
+  } = p;
+  console.log("---b gd->", boardMeta, gameInfo);
   const phaserGameRef = useRef<HTMLDivElement | null>(null);
   const gameInstanceRef = useRef<Phaser.Game | null>(null); // Track Phaser instance
 
@@ -32,13 +38,16 @@ const GameComponent = ({
       };
 
       gameInstanceRef.current = new Phaser.Game(config);
+      console.log("initiazlise", boardMeta, gameInfo);
       gameInstanceRef.current.scene.start("ChessScene", {
-        boardMeta: board,
+        boardMeta: boardMeta,
         gameInfo,
       });
     };
 
-    initializeGame();
+    if (boardMeta && gameInfo) {
+      initializeGame();
+    }
 
     return () => {
       if (gameInstanceRef.current) {
@@ -48,7 +57,7 @@ const GameComponent = ({
       }
       // phaserGameRef.current = null;
     };
-  }, [board, gameInfo]); // Dependencies ensure effect is stable
+  }, [boardMeta, gameInfo]); // Dependencies ensure effect is stable
 
   const myColor = gameInfo.yourColor;
   const myName = gameInfo.players[myColor].name;

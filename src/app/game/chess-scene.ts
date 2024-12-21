@@ -70,7 +70,6 @@ export class ChessScene extends Phaser.Scene {
       StateMachineEvents.showAvailableMoves,
       (event: any) => {
         const { availableMoves, x, y } = event.detail;
-        console.log("availableMoves", availableMoves);
         this.renderAvailableMoves(availableMoves);
         this.renderSelectedPieceHightLight(x, y);
       }
@@ -254,8 +253,6 @@ export class ChessScene extends Phaser.Scene {
     const [fromX, fromY] = from;
     const [toX, toY] = to;
 
-    console.log("--------->", from, to, affects);
-
     const processedToY = this.needReverseY() ? 7 - toY : toY;
     const processedToX = this.needReverseX() ? 7 - toX : toX;
 
@@ -263,9 +260,17 @@ export class ChessScene extends Phaser.Scene {
     const movedObject = this.pieceGameObjects[fromMovedObjectKey];
 
     const toMovedObjectKey = this.coordToMapkey(toX, toY);
-    const killedObject = this.pieceGameObjects[toMovedObjectKey];
-    if (killedObject) {
-      killedObject.destroy();
+
+    if (affects && affects.length > 0) {
+      affects.forEach((affect) => {
+        if (affect.type === AffectType.kill && affect.from) {
+          const [aFromX, aFromY] = affect.from;
+
+          const fromMovedObjectKey = this.coordToMapkey(aFromX, aFromY);
+          this.pieceGameObjects[fromMovedObjectKey].destroy();
+          delete this.pieceGameObjects[fromMovedObjectKey];
+        }
+      });
     }
 
     const canvasX =
@@ -279,18 +284,11 @@ export class ChessScene extends Phaser.Scene {
     delete this.pieceGameObjects[fromMovedObjectKey];
     this.pieceGameObjects[toMovedObjectKey] = movedObject;
 
-    console.log("affects", affects);
     if (affects && affects.length > 0) {
       affects.forEach((affect) => {
-        const [aFromX, aFromY] = affect.from;
+        if (affect.type === AffectType.move && affect.from) {
+          const [aFromX, aFromY] = affect.from;
 
-        if (affect.type === AffectType.kill) {
-          const fromMovedObjectKey = this.coordToMapkey(aFromX, aFromY);
-          this.pieceGameObjects[fromMovedObjectKey].destroy();
-          delete this.pieceGameObjects[fromMovedObjectKey];
-        }
-        if (affect.type === AffectType.move) {
-          console.log("handle move");
           if (!affect.to) {
             throw new Error("Affect type move should have to field");
           }
