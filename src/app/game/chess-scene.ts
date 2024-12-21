@@ -86,6 +86,12 @@ export class ChessScene extends Phaser.Scene {
         this.movePiece(event.detail);
       }
     );
+    this.sceneUpdatesEventEmitter.addEventListener(
+      StateMachineEvents.gameEnded,
+      () => {
+        // TODO
+      }
+    );
 
     this.input.on("pointerdown", this.uiToLogicConverter.handleBoardClick);
     this.render();

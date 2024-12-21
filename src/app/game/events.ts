@@ -10,4 +10,5 @@ export enum StateMachineEvents {
   pieceMoved = "pieceMoved",
   showAvailableMoves = "showAvailableMoves",
   hideAvailableMoves = "hideAvailableMoves",
+  gameEnded = "gameEnded",
 }
