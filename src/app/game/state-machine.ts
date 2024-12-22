@@ -86,7 +86,7 @@ export class StateMachine {
     );
   };
 
-  private handleTileClickedInPieceSelectedState(x: number, y: number) {
+  private handleTileClickedInPieceSelectedState = (x: number, y: number) => {
     if (!this.selectedPiece) {
       throw new Error("Piece is not selected, but should be");
     }
@@ -125,60 +125,67 @@ export class StateMachine {
         },
       })
     );
-  }
+  };
 
-  setupListeners() {
+  setupListeners = () => {
     this.userActionsEventEmitter.addEventListener(
       UiEvent.TileClicked,
-      (event: any) => {
-        const [x, y] = (event as TileClickedPayload).detail;
-        if (this.game?.nextTurnColor !== this.gameInfo.yourColor) {
-          console.log("Not your turn");
-          return;
-        }
-
-        if (this.state === GameStateName.PieceSelected) {
-          this.handleTileClickedInPieceSelectedState(x, y);
-        } else if (this.state === GameStateName.Idle) {
-          this.handleTileClickedInIdleState(x, y);
-        }
-      }
+      this.onTileClicked
     );
-    socket.subscribeOnOpponentTurn((turn: Turn) => {
-      console.log("Opponent turn");
-      const [fromX, fromY] = turn.from;
-      const [toX, toY] = turn.to;
+    socket.subscribeOnOpponentTurn(this.onOpponentTurn);
+    socket.subscribeOnWinEvent(this.onWin);
+    socket.subscribeOnLostEvent(this.onLost);
+  };
 
-      this.game?.processTurn(turn);
+  onTileClicked = (event: any) => {
+    const [x, y] = (event as TileClickedPayload).detail;
+    if (this.game?.nextTurnColor !== this.gameInfo.yourColor) {
+      console.log("Not your turn");
+      return;
+    }
 
-      this.sceneUpdatesEventEmitter.dispatchEvent(
-        new CustomEvent(StateMachineEvents.pieceMoved, {
-          detail: {
-            from: [fromX, fromY],
-            to: [toX, toY],
-            affects: turn.affects,
-          },
-        })
-      );
-    });
+    if (this.state === GameStateName.PieceSelected) {
+      this.handleTileClickedInPieceSelectedState(x, y);
+    } else if (this.state === GameStateName.Idle) {
+      this.handleTileClickedInIdleState(x, y);
+    }
+  };
 
-    // locks ui
-    socket.subscribeOnWinEvent(() => {
-      this.sceneUpdatesEventEmitter.dispatchEvent(
-        new CustomEvent(StateMachineEvents.gameEnded)
-      );
-    });
-    socket.subscribeOnWinEvent(() => {
-      this.sceneUpdatesEventEmitter.dispatchEvent(
-        new CustomEvent(StateMachineEvents.gameEnded)
-      );
-    });
-  }
+  onLost = () => {
+    this.sceneUpdatesEventEmitter.dispatchEvent(
+      new CustomEvent(StateMachineEvents.gameEnded)
+    );
+  };
+  onWin = () => {
+    this.sceneUpdatesEventEmitter.dispatchEvent(
+      new CustomEvent(StateMachineEvents.gameEnded)
+    );
+  };
 
-  private updateGameNextTurn() {
-    this.game!.nextTurnColor =
-      this.game!.nextTurnColor === Color.black ? Color.white : Color.black;
-  }
+  destroy = () => {
+    socket.unsubscribeOnOpponentTurn(this.onOpponentTurn);
+    socket.unsubscribeOnLostEvent(this.onLost);
+    socket.unsubscribeOnWinEvent(this.onWin);
+
+    this.userActionsEventEmitter.removeEventListener(
+      UiEvent.TileClicked,
+      this.onTileClicked
+    );
+  };
+
+  onOpponentTurn = (turn: Turn) => {
+    this.game?.processTurn(turn);
+
+    this.sceneUpdatesEventEmitter.dispatchEvent(
+      new CustomEvent(StateMachineEvents.pieceMoved, {
+        detail: {
+          from: turn.from,
+          to: turn.to,
+          affects: turn.affects,
+        },
+      })
+    );
+  };
 }
 
 /*

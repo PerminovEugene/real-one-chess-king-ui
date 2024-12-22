@@ -12,23 +12,25 @@ import Phaser from "phaser";
 import { ClassUiToLogicconverter } from "./ui-to-logic";
 import { StateMachine } from "./state-machine";
 import { StateMachineEvents } from "./events";
+import { BoardRenderer } from "./renderer/board.renderer";
+import { PieceRenderer, PieceRendererConfig } from "./renderer/piece.renderer";
+import { coordinateToTileCoordinate } from "./renderer/ui-index-converter";
 
-const colorToTypeToAscii = {
+const BROWN_COLOR = 0xb88b4a;
+const YELLOW_COLOR = 0xe4c170;
+
+const pieceRendererConfig: PieceRendererConfig = {
   [Color.black]: {
-    [PieceType.Pawn]: "♟",
-    [PieceType.Bishop]: "♝",
-    [PieceType.Knight]: "♞",
-    [PieceType.Rook]: "♜",
-    [PieceType.Queen]: "♛",
-    [PieceType.King]: "♚",
+    color: "black" as any,
+    // stroke: "white" as any,
+    fontSize: "64px",
+    // strokeThickness: 2,
   },
   [Color.white]: {
-    [PieceType.Pawn]: "♙",
-    [PieceType.Bishop]: "♗",
-    [PieceType.Knight]: "♘",
-    [PieceType.Rook]: "♖",
-    [PieceType.Queen]: "♕",
-    [PieceType.King]: "♔",
+    color: "white" as any,
+    stroke: "black" as any,
+    fontSize: "64px",
+    strokeThickness: 2,
   },
 };
 
@@ -36,9 +38,11 @@ export class ChessScene extends Phaser.Scene {
   constructor() {
     super({ key: "ChessScene" });
   }
-  private offset = 30;
-  private tileSize = 80;
-  private boardSize = 8;
+  private boardSizeConfig = {
+    tileSize: 80,
+    offset: 30,
+    boardSize: 8,
+  };
 
   private board?: Board;
   private gameInfo: any = {};
@@ -50,11 +54,14 @@ export class ChessScene extends Phaser.Scene {
   private availableMoveObjects: Phaser.GameObjects.Rectangle[] = [];
   private stateMachine?: StateMachine;
 
-  create(data: { boardMeta: BoardMeta; gameInfo: any }) {
+  private boardRender?: BoardRenderer;
+  private pieceRenderer?: PieceRenderer;
+
+  create = (data: { boardMeta: BoardMeta; gameInfo: any }) => {
     this.gameInfo = data.gameInfo; // Store the game info
     this.uiToLogicConverter = new ClassUiToLogicconverter(
-      this.tileSize,
-      this.offset,
+      this.boardSizeConfig.tileSize,
+      this.boardSizeConfig.offset,
       data.gameInfo,
       this.userActionsEventEmitter
     );
@@ -66,50 +73,44 @@ export class ChessScene extends Phaser.Scene {
     );
     this.board = this.stateMachine.getBoard();
 
-    this.sceneUpdatesEventEmitter.addEventListener(
-      StateMachineEvents.showAvailableMoves,
-      (event: any) => {
-        const { availableMoves, x, y } = event.detail;
-        this.renderAvailableMoves(availableMoves);
-        this.renderSelectedPieceHightLight(x, y);
-      }
-    );
-    this.sceneUpdatesEventEmitter.addEventListener(
-      StateMachineEvents.hideAvailableMoves,
-      () => {
-        this.destoryAvailableMoves();
-      }
-    );
-    this.sceneUpdatesEventEmitter.addEventListener(
-      StateMachineEvents.pieceMoved,
-      (event: any) => {
-        this.movePiece(event.detail);
-      }
-    );
-    this.sceneUpdatesEventEmitter.addEventListener(
-      StateMachineEvents.gameEnded,
-      () => {
-        // TODO
-      }
-    );
+    this.addEventListners();
 
     this.input.on("pointerdown", this.uiToLogicConverter.handleBoardClick);
+
+    this.boardRender = new BoardRenderer(this.boardSizeConfig, {
+      dark: BROWN_COLOR,
+      light: YELLOW_COLOR,
+    });
+    this.pieceRenderer = new PieceRenderer(
+      this.boardSizeConfig,
+      pieceRendererConfig
+    );
     this.render();
-  }
 
-  preload() {
-    this.load.image("light", "light_tile.png");
-    this.load.image("dark", "dark_tile.png");
-  }
+    this.events.on(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.destroy();
+    });
 
-  shutdown() {
-    // Cleanup resources when the scene is stopped
-    console.log("ChessScene shutdown");
-  }
+    this.events.on(Phaser.Scenes.Events.DESTROY, () => {
+      this.destroy();
+    });
+  };
 
-  destroy() {
-    console.log("ChessScene destroyed");
-  }
+  // destructors
+
+  shutdown = () => {
+    console.log("Scene shutdown");
+    this.removeEventListners();
+    this.stateMachine?.destroy();
+  };
+
+  destroy = () => {
+    console.log("Scene destroy");
+    this.removeEventListners();
+    this.stateMachine?.destroy();
+  };
+
+  // render
 
   render() {
     this.renderBoard();
@@ -118,9 +119,10 @@ export class ChessScene extends Phaser.Scene {
   }
 
   renderOffset() {
-    for (let row = 0; row < this.boardSize; row++) {
-      const x = this.offset / 2;
-      const y = row * this.tileSize + this.tileSize / 2;
+    const { tileSize, offset, boardSize } = this.boardSizeConfig;
+    for (let row = 0; row < boardSize; row++) {
+      const x = offset / 2;
+      const y = row * tileSize + tileSize / 2;
       const numCoord = this.needReverseY() ? 8 - row : row + 1;
       this.add
         .text(x, y, [numCoord].join(","), {
@@ -129,9 +131,9 @@ export class ChessScene extends Phaser.Scene {
         })
         .setOrigin(0.5);
     }
-    for (let col = 0; col < this.boardSize; col++) {
-      const x = col * this.tileSize + this.tileSize / 2 + this.offset;
-      const y = this.boardSize * this.tileSize + this.offset / 2;
+    for (let col = 0; col < boardSize; col++) {
+      const x = col * tileSize + tileSize / 2 + offset;
+      const y = boardSize * tileSize + offset / 2;
 
       const charCoord = String.fromCharCode(
         (this.gameInfo.yourColor === Color.black ? 7 - col : col) + 97
@@ -146,19 +148,20 @@ export class ChessScene extends Phaser.Scene {
   }
 
   renderBoard() {
-    for (let row = 0; row < this.boardSize; row++) {
-      for (let col = 0; col < this.boardSize; col++) {
-        const isDark = (row + col) % 2 === 1;
-        const tileKey = isDark ? "dark" : "light";
+    this.boardRender?.render(this);
+    // for (let row = 0; row < this.boardSize; row++) {
+    //   for (let col = 0; col < this.boardSize; col++) {
+    //     const isDark = (row + col) % 2 === 1;
+    //     const tileKey = isDark ? "dark" : "light";
 
-        const x = col * this.tileSize + this.tileSize / 2 + this.offset;
-        const y = row * this.tileSize + this.tileSize / 2;
+    //     const x = col * this.tileSize + this.tileSize / 2 + this.offset;
+    //     const y = row * this.tileSize + this.tileSize / 2;
 
-        this.add
-          .image(x, y, tileKey)
-          .setDisplaySize(this.tileSize, this.tileSize);
-      }
-    }
+    //     this.add
+    //       .image(x, y, tileKey)
+    //       .setDisplaySize(this.tileSize, this.tileSize);
+    //   }
+    // }
   }
 
   private pieceGameObjects: { [key in string]: Phaser.GameObjects.Text } = {};
@@ -177,23 +180,21 @@ export class ChessScene extends Phaser.Scene {
     if (!this.board) {
       throw new Error("Board is not initialized in the scene");
     }
-
+    if (!this.pieceRenderer) {
+      throw new Error("Piece renderer is not initialized");
+    }
     this.board.squares.forEach((row, ri) => {
       const rowIndex: number = this.needReverseY() ? 7 - ri : ri;
-
       row.forEach((cell, ci) => {
         const colIndex: number = this.needReverseX() ? 7 - ci : ci;
-
         const piece = cell.getPiece();
         if (piece) {
-          const x = colIndex * this.tileSize + this.tileSize / 2 + this.offset;
-          const y = rowIndex * this.tileSize + this.tileSize / 2;
-          const pieceGameObject = this.add
-            .text(x, y, this.typeToAscii(piece.type, piece.color), {
-              fontSize: "64px",
-              color: piece.color === "white" ? "#FFF" : "#000",
-            })
-            .setOrigin(0.5);
+          const pieceGameObject = this.pieceRenderer!.renderPiece(
+            this,
+            piece,
+            colIndex,
+            rowIndex
+          );
           this.pieceGameObjects[this.coordToMapkey(ci, ri)] = pieceGameObject;
         }
       });
@@ -207,16 +208,10 @@ export class ChessScene extends Phaser.Scene {
       y = 7 - y;
       x = 7 - x;
     }
-    const canvasX = x * this.tileSize + this.tileSize / 2 + this.offset;
-    const canvasY = y * this.tileSize + this.tileSize / 2;
-    const selectedPieceObj = this.add.rectangle(
-      canvasX,
-      canvasY,
-      this.tileSize,
-      this.tileSize,
-      0x0000ff,
-      0.5
-    );
+    // const canvasX = x * this.tileSize + this.tileSize / 2 + this.offset;
+    // const canvasY = y * this.tileSize + this.tileSize / 2;
+
+    const selectedPieceObj = this.boardRender!.addHighlight(this, x, y);
     this.availableMoveObjects.push(selectedPieceObj);
   }
   renderAvailableMoves(availableMoves: [number, number][]) {
@@ -228,20 +223,11 @@ export class ChessScene extends Phaser.Scene {
         y = 7 - y;
         x = 7 - x;
       }
-      const canvasX = x * this.tileSize + this.tileSize / 2 + this.offset;
-      const canvasY = y * this.tileSize + this.tileSize / 2;
-      const availableMoveObj = this.add.rectangle(
-        canvasX,
-        canvasY,
-        this.tileSize,
-        this.tileSize,
-        0xff0000,
-        0.5
-      );
+      const availableMoveObj = this.boardRender!.addHighlight(this, x, y);
       this.availableMoveObjects.push(availableMoveObj);
     });
   }
-  private destoryAvailableMoves() {
+  destoryAvailableMoves() {
     this.availableMoveObjects.forEach((obj) => obj.destroy());
     this.availableMoveObjects = [];
   }
@@ -279,9 +265,11 @@ export class ChessScene extends Phaser.Scene {
       });
     }
 
-    const canvasX =
-      processedToX * this.tileSize + this.tileSize / 2 + this.offset;
-    const canvasY = processedToY * this.tileSize + this.tileSize / 2;
+    const { canvasX, canvasY } = coordinateToTileCoordinate(
+      processedToX,
+      processedToY,
+      this.boardSizeConfig
+    );
 
     movedObject.setX(canvasX);
     movedObject.setY(canvasY);
@@ -305,9 +293,15 @@ export class ChessScene extends Phaser.Scene {
           const aFromMovedObjectKey = this.coordToMapkey(aFromX, aFromY);
           const aToMovedObjectKey = this.coordToMapkey(aToX, aToY);
 
-          const canvasX =
-            processedToX * this.tileSize + this.tileSize / 2 + this.offset;
-          const canvasY = processedToY * this.tileSize + this.tileSize / 2;
+          // const canvasX =
+          //   processedToX * this.tileSize + this.tileSize / 2 + this.offset;
+          // const canvasY = processedToY * this.tileSize + this.tileSize / 2;
+
+          const { canvasX, canvasY } = coordinateToTileCoordinate(
+            processedToX,
+            processedToY,
+            this.boardSizeConfig
+          );
 
           const movedObject = this.pieceGameObjects[aFromMovedObjectKey];
 
@@ -322,7 +316,51 @@ export class ChessScene extends Phaser.Scene {
     }
   };
 
-  typeToAscii(type: PieceType, color: Color) {
-    return colorToTypeToAscii[color][type];
+  // socket event handlers
+
+  onMove = (event: any) => {
+    this.movePiece(event.detail);
+  };
+
+  onShowAvailableMoves = (event: any) => {
+    const { availableMoves, x, y } = event.detail;
+    this.renderAvailableMoves(availableMoves);
+    this.renderSelectedPieceHightLight(x, y);
+  };
+
+  onHideAvailableMoves = () => {
+    this.destoryAvailableMoves();
+  };
+
+  private listners = {};
+
+  addEventListners() {
+    this.sceneUpdatesEventEmitter.addEventListener(
+      StateMachineEvents.showAvailableMoves,
+      this.onShowAvailableMoves
+    );
+    this.sceneUpdatesEventEmitter.addEventListener(
+      StateMachineEvents.hideAvailableMoves,
+      this.onHideAvailableMoves
+    );
+    this.sceneUpdatesEventEmitter.addEventListener(
+      StateMachineEvents.pieceMoved,
+      this.onMove
+    );
+  }
+
+  removeEventListners() {
+    this.sceneUpdatesEventEmitter.removeEventListener(
+      StateMachineEvents.showAvailableMoves,
+      this.onShowAvailableMoves
+    );
+    this.sceneUpdatesEventEmitter.removeEventListener(
+      StateMachineEvents.hideAvailableMoves,
+      this.onHideAvailableMoves
+    );
+    this.sceneUpdatesEventEmitter.removeEventListener(
+      StateMachineEvents.pieceMoved,
+      this.onMove
+    );
   }
 }

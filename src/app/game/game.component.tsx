@@ -1,14 +1,10 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
-import { Board, Color, reverseColor } from "@real_one_chess_king/game-logic";
+import { Board, reverseColor } from "@real_one_chess_king/game-logic";
 import Phaser from "phaser";
 import { ChessScene } from "./chess-scene";
-import wsClientInstance from "../../socket/index";
-
-function Hint({ isMyturn }: any) {
-  return <div>{isMyturn ? <p>Your turn</p> : <p>Opponent's turn</p>}</div>;
-}
+import TurnInfoComponent from "./turn-info.component";
 
 const GameComponent = ({
   gameData: { boardMeta, gameInfo },
@@ -21,10 +17,6 @@ const GameComponent = ({
   const phaserGameRef = useRef<HTMLDivElement | null>(null);
   const gameInstanceRef = useRef<Phaser.Game | null>(null); // Track Phaser instance
 
-  const [currentTurnColor, setCurrentTurnColor] = React.useState<Color>(
-    Color.white
-  );
-
   useEffect(() => {
     if (gameInstanceRef.current) {
       console.log("Phaser game already initialized.");
@@ -32,6 +24,7 @@ const GameComponent = ({
     }
 
     const initializeGame = async () => {
+      console.log("init game compoenent with phaser stuff");
       const config: Phaser.Types.Core.GameConfig = {
         type: Phaser.AUTO,
         width: 670,
@@ -47,35 +40,34 @@ const GameComponent = ({
       });
     };
 
-    if (boardMeta && gameInfo) {
+    if (boardMeta && gameInfo && !gameInstanceRef.current) {
       initializeGame();
-      wsClientInstance.subscribeOnOpponentTurn(() => {
-        setCurrentTurnColor(gameInfo.yourColor);
-      });
-      const opponentColor = reverseColor(gameInfo.yourColor);
-      wsClientInstance.subscribeOnTurnConfirmed(() => {
-        setCurrentTurnColor(opponentColor);
-      });
     }
 
     return () => {
+      console.log("destroy game");
       if (gameInstanceRef.current) {
+        // 1. Stop ChessScene => triggers SHUTDOWN
         gameInstanceRef.current.scene.stop("ChessScene");
-        gameInstanceRef.current.destroy(true); // Properly clean up Phaser instance
+
+        // 2. Remove ChessScene => triggers DESTROY
+        gameInstanceRef.current.scene.remove("ChessScene");
+
+        // 3. Destroy the entire game
+        gameInstanceRef.current.destroy(true);
         gameInstanceRef.current = null;
       }
     };
-  }, [boardMeta, gameInfo]); // Dependencies ensure effect is stable
+  }, [gameInfo]); // Dependencies ensure effect is stable
 
   const myColor = gameInfo.yourColor;
   const myName = gameInfo.players[myColor].name;
-  const opponentColor = myColor === Color.white ? Color.black : Color.white;
+  const opponentColor = reverseColor(myColor);
   const opponentName = gameInfo.players[opponentColor].name;
-  const isMyturn = currentTurnColor === myColor;
 
   return (
     <div>
-      <Hint isMyturn={isMyturn} />
+      <TurnInfoComponent myColor={myColor} />
       <p>{opponentName}</p>
       <div id="game-container" ref={phaserGameRef}></div>
       <div>{myName}</div>

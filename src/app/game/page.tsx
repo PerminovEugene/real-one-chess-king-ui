@@ -36,9 +36,7 @@ export default function GamePage() {
   const [opponentDisconnected, setOpponentDisconnected] = useState(false);
   const [isWon, setWin] = useState(false);
   const [isLost, setLost] = useState(false);
-
   const [inQueue, setInQueue] = useState(false);
-
   const [gameData, setGameData] = useState<any>(null);
 
   const onOpponentDisconnected = () => {
@@ -63,17 +61,44 @@ export default function GamePage() {
     wsClientInstance.subscribeOnOpponentDisconnected(onOpponentDisconnected);
     wsClientInstance.subscribeOnWinEvent(onWin);
     wsClientInstance.subscribeOnLostEvent(onLost);
+    return () => {
+      wsClientInstance.unsubscribeOnOpponentDisconnected(
+        onOpponentDisconnected
+      );
+      wsClientInstance.unsubscribeOnWinEvent(onWin);
+      wsClientInstance.unsubscribeOnLostEvent(onLost);
+      wsClientInstance.unsubscribeOnWaitingForOpponent(onInQueue);
+      wsClientInstance.unsubscribeOnGameStarted(onGameFound);
+    };
   }, []);
+
+  const onGameFound = (data: any) => {
+    setInQueue(false);
+    setGameData(data);
+  };
+
+  const onInQueue = () => {
+    setInQueue(true);
+  };
 
   const findGame = () => {
     setOpponentDisconnected(false);
-    wsClientInstance.sendFindGame(setGameData, setInQueue);
+    wsClientInstance.subscribeOnWaitingForOpponent(onInQueue);
+    wsClientInstance.subscribeOnGameStarted(onGameFound);
+    wsClientInstance.sendFindGame();
   };
 
   const showFindButton = isConnected && !gameData && !inQueue;
   const showInQueueMessage = isConnected && !gameData && inQueue;
-  const showBoard = isConnected && gameData && !inQueue;
   const showOponentDisconnected = isConnected && opponentDisconnected;
+  const showBoard = isConnected && gameData && !inQueue;
+
+  const onlyBoardVisible =
+    showBoard &&
+    !showOponentDisconnected &&
+    !showInQueueMessage &&
+    !showFindButton;
+
   return (
     <div className="grid items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
       {showFindButton && (
@@ -91,7 +116,7 @@ export default function GamePage() {
         showWinMessage={isWon}
         showOpponentWon={isLost}
       />
-      {showBoard && <DynamicGameComponent gameData={gameData} />}
+      {onlyBoardVisible && <DynamicGameComponent gameData={gameData} />}
     </div>
   );
 }
