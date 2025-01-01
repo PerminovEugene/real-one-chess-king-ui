@@ -57,6 +57,14 @@ export class PieceRenderer {
       .setOrigin(0.5);
   }
 
+  changePieceType(
+    pieceObject: Phaser.GameObjects.Text,
+    type: PieceType,
+    color: Color
+  ) {
+    pieceObject.setText(this.typeToAscii(type, color));
+  }
+
   typeToAscii(type: PieceType, color: Color) {
     return colorToTypeToAscii[color][type];
   }

@@ -1,18 +1,26 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
-import { Board, reverseColor } from "@real_one_chess_king/game-logic";
+import {
+  BoardMeta,
+  NewPlayerGameData,
+  reverseColor,
+} from "@real_one_chess_king/game-logic";
 import Phaser from "phaser";
 import { ChessScene } from "./chess-scene";
-import TurnInfoComponent from "./turn-info.component";
+import PieceSelectionComponent from "./piece-selection.component";
+
+export type NewGameData = {
+  boardMeta: BoardMeta;
+  gameInfo: NewPlayerGameData;
+};
+
+const userActionsEventEmitter: EventTarget = new EventTarget();
 
 const GameComponent = ({
   gameData: { boardMeta, gameInfo },
 }: {
-  gameData: {
-    boardMeta: Board;
-    gameInfo: any;
-  };
+  gameData: NewGameData;
 }) => {
   const phaserGameRef = useRef<HTMLDivElement | null>(null);
   const gameInstanceRef = useRef<Phaser.Game | null>(null); // Track Phaser instance
@@ -37,6 +45,7 @@ const GameComponent = ({
       gameInstanceRef.current.scene.start("ChessScene", {
         boardMeta: boardMeta,
         gameInfo,
+        userActionsEventEmitter,
       });
     };
 
@@ -67,8 +76,10 @@ const GameComponent = ({
 
   return (
     <div>
-      <TurnInfoComponent myColor={myColor} />
       <p>{opponentName}</p>
+      <PieceSelectionComponent
+        userActionsEventEmitter={userActionsEventEmitter}
+      />
       <div id="game-container" ref={phaserGameRef}></div>
       <div>{myName}</div>
     </div>

@@ -3,10 +3,20 @@
 import React, { useEffect, useState } from "react";
 import wsClientInstance from "../../socket/index";
 import dynamic from "next/dynamic";
+import TurnInfoComponent from "./turn-info.component";
+import { NewGameData } from "./game.component";
 
 const DynamicGameComponent = dynamic(() => import("./game.component"), {
   loading: () => <p>Loading...</p>,
 });
+
+type NotificationWrapperProps = {
+  isConnected: boolean;
+  showOponentDisconnected: boolean;
+  showInQueueMessage: boolean;
+  showWinMessage: boolean;
+  showOpponentWon: boolean;
+};
 
 export function NotificationWrapper({
   isConnected,
@@ -14,7 +24,7 @@ export function NotificationWrapper({
   showInQueueMessage,
   showWinMessage,
   showOpponentWon,
-}: any) {
+}: NotificationWrapperProps) {
   return (
     <div>
       {!isConnected && <p>Connecting...</p>}
@@ -23,7 +33,7 @@ export function NotificationWrapper({
       {showOponentDisconnected && (
         <div>
           <p>Opponent disconnected :| But You won! :D</p>
-          <p>Let's try again</p>
+          <p>Let&#39;s try again</p>
         </div>
       )}
       {showInQueueMessage && <p>Waiting for opponent...</p>}
@@ -37,7 +47,7 @@ export default function GamePage() {
   const [isWon, setWin] = useState(false);
   const [isLost, setLost] = useState(false);
   const [inQueue, setInQueue] = useState(false);
-  const [gameData, setGameData] = useState<any>(null);
+  const [gameData, setGameData] = useState<NewGameData | null>(null);
 
   const onOpponentDisconnected = () => {
     setGameData(null);
@@ -72,7 +82,7 @@ export default function GamePage() {
     };
   }, []);
 
-  const onGameFound = (data: any) => {
+  const onGameFound = (data: NewGameData) => {
     setInQueue(false);
     setGameData(data);
   };
@@ -98,6 +108,7 @@ export default function GamePage() {
     !showOponentDisconnected &&
     !showInQueueMessage &&
     !showFindButton;
+  const gameInProgress = onlyBoardVisible && !isWon && !isLost;
 
   return (
     <div className="grid items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
@@ -116,7 +127,15 @@ export default function GamePage() {
         showWinMessage={isWon}
         showOpponentWon={isLost}
       />
-      {onlyBoardVisible && <DynamicGameComponent gameData={gameData} />}
+      {onlyBoardVisible && (
+        <React.Fragment>
+          {/* Add stalemate handling */}
+          {gameInProgress && (
+            <TurnInfoComponent myColor={gameData.gameInfo.yourColor} />
+          )}
+          <DynamicGameComponent gameData={gameData} />
+        </React.Fragment>
+      )}
     </div>
   );
 }

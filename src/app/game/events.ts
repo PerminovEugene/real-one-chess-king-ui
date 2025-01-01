@@ -1,5 +1,9 @@
 export enum UiEvent {
   TileClicked = "tileClicked",
+
+  ShowTransformationOptions = "showTransformationOptions",
+
+  TransformationPieceTypeSelected = "transformationPieceTypeSelected",
 }
 
 export type TileClickedPayload = {
@@ -8,7 +12,11 @@ export type TileClickedPayload = {
 
 export enum StateMachineEvents {
   pieceMoved = "pieceMoved",
-  showAvailableMoves = "showAvailableMoves",
+  showSelectedPieceActions = "showAvailableMoves",
   hideAvailableMoves = "hideAvailableMoves",
+
+  // showTransformationOptions = "showTransformationOptions",
+  // transformationPieceTypeSelected = "transformationPieceTypeSelected",
+
   gameEnded = "gameEnded",
 }

@@ -7,6 +7,7 @@ import { io, Socket } from "socket.io-client";
 
 let socket: Socket;
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Listener = (...args: any[]) => void;
 
 class WSClient {

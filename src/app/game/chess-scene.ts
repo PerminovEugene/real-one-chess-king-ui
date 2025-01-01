@@ -1,12 +1,14 @@
 "use client";
 
 import {
-  Affect,
-  AffectType,
+  Action,
   Board,
   BoardMeta,
   Color,
-  PieceType,
+  isKillAffect,
+  isMoveAffect,
+  isTransformationAffect,
+  NewPlayerGameData,
 } from "@real_one_chess_king/game-logic";
 import Phaser from "phaser";
 import { ClassUiToLogicconverter } from "./ui-to-logic";
@@ -21,14 +23,14 @@ const YELLOW_COLOR = 0xe4c170;
 
 const pieceRendererConfig: PieceRendererConfig = {
   [Color.black]: {
-    color: "black" as any,
+    color: "black",
     // stroke: "white" as any,
     fontSize: "64px",
     // strokeThickness: 2,
   },
   [Color.white]: {
-    color: "white" as any,
-    stroke: "black" as any,
+    color: "white",
+    stroke: "black",
     fontSize: "64px",
     strokeThickness: 2,
   },
@@ -45,10 +47,10 @@ export class ChessScene extends Phaser.Scene {
   };
 
   private board?: Board;
-  private gameInfo: any = {};
+  private gameInfo?: NewPlayerGameData;
 
   private uiToLogicConverter?: ClassUiToLogicconverter;
-  private userActionsEventEmitter: EventTarget = new EventTarget();
+  private userActionsEventEmitter?: EventTarget;
   private sceneUpdatesEventEmitter: EventTarget = new EventTarget();
 
   private availableMoveObjects: Phaser.GameObjects.Rectangle[] = [];
@@ -57,8 +59,15 @@ export class ChessScene extends Phaser.Scene {
   private boardRender?: BoardRenderer;
   private pieceRenderer?: PieceRenderer;
 
-  create = (data: { boardMeta: BoardMeta; gameInfo: any }) => {
+  create = (data: {
+    boardMeta: BoardMeta;
+    gameInfo: NewPlayerGameData;
+    userActionsEventEmitter: EventTarget;
+  }) => {
     this.gameInfo = data.gameInfo; // Store the game info
+
+    this.userActionsEventEmitter = data.userActionsEventEmitter;
+
     this.uiToLogicConverter = new ClassUiToLogicconverter(
       this.boardSizeConfig.tileSize,
       this.boardSizeConfig.offset,
@@ -113,17 +122,22 @@ export class ChessScene extends Phaser.Scene {
   // render
 
   render() {
-    this.renderBoard();
+    this.boardRender?.render(this);
     this.renderOffset();
     this.renderPieces();
   }
 
   renderOffset() {
+    if (!this.gameInfo) {
+      throw new Error("Game info is not initialized in the scene");
+    }
+
     const { tileSize, offset, boardSize } = this.boardSizeConfig;
     for (let row = 0; row < boardSize; row++) {
       const x = offset / 2;
       const y = row * tileSize + tileSize / 2;
-      const numCoord = this.needReverseY() ? 8 - row : row + 1;
+      const [, correctY] = this.correctedXY(x, row);
+      const numCoord = correctY + 1;
       this.add
         .text(x, y, [numCoord].join(","), {
           fontSize: "15px",
@@ -147,34 +161,17 @@ export class ChessScene extends Phaser.Scene {
     }
   }
 
-  renderBoard() {
-    this.boardRender?.render(this);
-    // for (let row = 0; row < this.boardSize; row++) {
-    //   for (let col = 0; col < this.boardSize; col++) {
-    //     const isDark = (row + col) % 2 === 1;
-    //     const tileKey = isDark ? "dark" : "light";
-
-    //     const x = col * this.tileSize + this.tileSize / 2 + this.offset;
-    //     const y = row * this.tileSize + this.tileSize / 2;
-
-    //     this.add
-    //       .image(x, y, tileKey)
-    //       .setDisplaySize(this.tileSize, this.tileSize);
-    //   }
-    // }
-  }
-
   private pieceGameObjects: { [key in string]: Phaser.GameObjects.Text } = {};
   private coordToMapkey(x: number, y: number) {
     return `${x}${y}`;
   }
 
-  private needReverseX() {
-    return this.gameInfo.yourColor === Color.white;
-  }
-  private needReverseY() {
-    return this.gameInfo.yourColor === Color.white;
-  }
+  // private needReverseX() {
+  //   return this.gameInfo.yourColor === Color.white;
+  // }
+  // private needReverseY() {
+  //   return this.gameInfo.yourColor === Color.white;
+  // }
 
   renderPieces() {
     if (!this.board) {
@@ -183,148 +180,192 @@ export class ChessScene extends Phaser.Scene {
     if (!this.pieceRenderer) {
       throw new Error("Piece renderer is not initialized");
     }
-    this.board.squares.forEach((row, ri) => {
-      const rowIndex: number = this.needReverseY() ? 7 - ri : ri;
-      row.forEach((cell, ci) => {
-        const colIndex: number = this.needReverseX() ? 7 - ci : ci;
-        const piece = cell.getPiece();
-        if (piece) {
-          const pieceGameObject = this.pieceRenderer!.renderPiece(
-            this,
-            piece,
-            colIndex,
-            rowIndex
-          );
-          this.pieceGameObjects[this.coordToMapkey(ci, ri)] = pieceGameObject;
-        }
+    const colors = [Color.white, Color.black];
+    for (const color of colors) {
+      this.board.forEachPiece(color, (piece, x, y) => {
+        // const colIndex: number = this.correctX(ci); //this.needReverseX() ? 7 - ci : ci;
+        // if (piece) {
+        const correctedXY = this.correctedXY(x, y);
+        const pieceGameObject = this.pieceRenderer!.renderPiece(
+          this,
+          piece,
+          correctedXY[0],
+          correctedXY[1]
+        );
+        this.pieceGameObjects[this.coordToMapkey(x, y)] = pieceGameObject;
+        // }
       });
-    });
+    }
+    // this.board.forEachPiece((row, ri) => {
+    //   const rowIndex: number = this.correctY(ri); //this.needReverseY() ? 7 - ri : ri;
+    //   row.forEach((cell, ci) => {
+    //     const colIndex: number = this.correctX(ci); //this.needReverseX() ? 7 - ci : ci;
+    //     const piece = cell.getPiece();
+    //     if (piece) {
+    //       const pieceGameObject = this.pieceRenderer!.renderPiece(
+    //         this,
+    //         piece,
+    //         colIndex,
+    //         rowIndex
+    //       );
+    //       this.pieceGameObjects[this.coordToMapkey(ci, ri)] = pieceGameObject;
+    //     }
+    //   });
+    // });
   }
-  renderSelectedPieceHightLight(x: number, y: number) {
+  renderSelectedPieceHightLight(rawX: number, rawY: number) {
     if (!this.board) {
       throw new Error("Board is not initialized in the scene");
     }
-    if (this.gameInfo.yourColor === Color.white) {
-      y = 7 - y;
-      x = 7 - x;
-    }
+    const [x, y] = this.correctedXY(rawX, rawY);
+    // if (this.gameInfo.yourColor === Color.white) {
+    //   y = 7 - y;
+    //   x = 7 - x;
+    // }
     // const canvasX = x * this.tileSize + this.tileSize / 2 + this.offset;
     // const canvasY = y * this.tileSize + this.tileSize / 2;
 
     const selectedPieceObj = this.boardRender!.addHighlight(this, x, y);
     this.availableMoveObjects.push(selectedPieceObj);
   }
-  renderAvailableMoves(availableMoves: [number, number][]) {
+
+  // private correctY = (y: number) => (y = 7 - y);
+  // private correctX = (x: number) => (x = 7 - x);
+  private correctedXY = (x: number, y: number) => {
+    if (!this.gameInfo) {
+      throw new Error("Game info is not initialized in the scene");
+    }
+    if (this.gameInfo.yourColor === Color.white) {
+      y = 7 - y;
+      x = 7 - x;
+    }
+    return [x, y];
+  };
+
+  renderAvailableMoves(actions: Action[]) {
     if (!this.board) {
       throw new Error("Board is not initialized in the scene");
     }
-    availableMoves.forEach(([x, y]) => {
-      if (this.gameInfo.yourColor === Color.white) {
-        y = 7 - y;
-        x = 7 - x;
+
+    const uniqMoves: { [key in string]: { [key in string]: boolean } } = {};
+    actions.forEach((action) => {
+      for (const affect of action) {
+        // TODO there is space for imporvement
+        // change colors for affect types,
+        // add better highlight when user mouse is above of the highlited action
+        if (isMoveAffect(affect) && affect.userSelected) {
+          const [x, y] = this.correctedXY(affect.to[0], affect.to[1]);
+          if (!uniqMoves[y]) {
+            uniqMoves[y] = {};
+          }
+          if (!uniqMoves[y][x]) {
+            uniqMoves[y][x] = true;
+            const availableMoveObj = this.boardRender!.addHighlight(this, x, y);
+            this.availableMoveObjects.push(availableMoveObj);
+          }
+        }
       }
-      const availableMoveObj = this.boardRender!.addHighlight(this, x, y);
-      this.availableMoveObjects.push(availableMoveObj);
     });
+    // .filter(([x, y]) => {
+    //   if (!uniqMoves[y]) {
+    //     uniqMoves[y] = {};
+    //     return true;
+    //   }
+    //   if (!uniqMoves[y][x]) {
+    //     uniqMoves[y][x] = true;
+    //     return true;
+    //   }
+    //   return false;
+    // })
+    // .forEach(([x, y]) => {
+    //   if (this.gameInfo.yourColor === Color.white) {
+    //     y = 7 - y;
+    //     x = 7 - x;
+    //   }
+
+    //   // some availableMoves can have similar coords if user need to pick something else
+    //   if (
+    //     this.availableMoveObjects.find((obj) => obj.x === x && obj.y === y)
+    //   ) {
+    //     return;
+    //   }
+
+    //   const availableMoveObj = this.boardRender!.addHighlight(this, x, y);
+    //   this.availableMoveObjects.push(availableMoveObj);
+    // });
   }
   destoryAvailableMoves() {
     this.availableMoveObjects.forEach((obj) => obj.destroy());
     this.availableMoveObjects = [];
   }
 
-  movePiece = ({
-    from,
-    to,
-    affects,
-  }: {
-    from: [number, number];
-    to: [number, number];
-    affects: Affect[];
-  }) => {
-    this.destoryAvailableMoves();
-    const [fromX, fromY] = from;
-    const [toX, toY] = to;
-
-    const processedToY = this.needReverseY() ? 7 - toY : toY;
-    const processedToX = this.needReverseX() ? 7 - toX : toX;
-
-    const fromMovedObjectKey = this.coordToMapkey(fromX, fromY);
-    const movedObject = this.pieceGameObjects[fromMovedObjectKey];
-
-    const toMovedObjectKey = this.coordToMapkey(toX, toY);
-
-    if (affects && affects.length > 0) {
-      affects.forEach((affect) => {
-        if (affect.type === AffectType.kill && affect.from) {
-          const [aFromX, aFromY] = affect.from;
-
-          const fromMovedObjectKey = this.coordToMapkey(aFromX, aFromY);
-          this.pieceGameObjects[fromMovedObjectKey].destroy();
-          delete this.pieceGameObjects[fromMovedObjectKey];
-        }
-      });
+  movePiece = (affects: Action) => {
+    if (!this.gameInfo) {
+      throw new Error("Game info is not initialized in the scene");
     }
 
-    const { canvasX, canvasY } = coordinateToTileCoordinate(
-      processedToX,
-      processedToY,
-      this.boardSizeConfig
-    );
+    affects.forEach((affect) => {
+      const [aFromX, aFromY] = affect.from;
 
-    movedObject.setX(canvasX);
-    movedObject.setY(canvasY);
-    movedObject.setOrigin(0.5, 0.5);
+      const aFromMovedObjectKey = this.coordToMapkey(aFromX, aFromY);
 
-    delete this.pieceGameObjects[fromMovedObjectKey];
-    this.pieceGameObjects[toMovedObjectKey] = movedObject;
+      if (isMoveAffect(affect) && affect.from) {
+        const [aToX, aToY] = affect.to;
 
-    if (affects && affects.length > 0) {
-      affects.forEach((affect) => {
-        if (affect.type === AffectType.move && affect.from) {
-          const [aFromX, aFromY] = affect.from;
+        const [processedToX, processedToY] = this.correctedXY(aToX, aToY);
+        const aToMovedObjectKey = this.coordToMapkey(aToX, aToY);
 
-          if (!affect.to) {
-            throw new Error("Affect type move should have to field");
-          }
-          const [aToX, aToY] = affect.to;
-          const processedToY = this.needReverseY() ? 7 - aToY : aToY;
-          const processedToX = this.needReverseX() ? 7 - aToX : aToX;
+        const { canvasX, canvasY } = coordinateToTileCoordinate(
+          processedToX,
+          processedToY,
+          this.boardSizeConfig
+        );
 
-          const aFromMovedObjectKey = this.coordToMapkey(aFromX, aFromY);
-          const aToMovedObjectKey = this.coordToMapkey(aToX, aToY);
+        const movedObject = this.pieceGameObjects[aFromMovedObjectKey];
 
-          // const canvasX =
-          //   processedToX * this.tileSize + this.tileSize / 2 + this.offset;
-          // const canvasY = processedToY * this.tileSize + this.tileSize / 2;
+        movedObject.setX(canvasX);
+        movedObject.setY(canvasY);
+        movedObject.setOrigin(0.5, 0.5);
 
-          const { canvasX, canvasY } = coordinateToTileCoordinate(
-            processedToX,
-            processedToY,
-            this.boardSizeConfig
-          );
+        this.pieceGameObjects[aToMovedObjectKey] = movedObject;
+        delete this.pieceGameObjects[aFromMovedObjectKey];
+      } else if (isKillAffect(affect)) {
+        const [aFromX, aFromY] = affect.from;
 
-          const movedObject = this.pieceGameObjects[aFromMovedObjectKey];
-
-          movedObject.setX(canvasX);
-          movedObject.setY(canvasY);
-          movedObject.setOrigin(0.5, 0.5);
-
-          this.pieceGameObjects[aToMovedObjectKey] = movedObject;
-          delete this.pieceGameObjects[aFromMovedObjectKey];
-        }
-      });
-    }
+        const fromMovedObjectKey = this.coordToMapkey(aFromX, aFromY);
+        this.pieceGameObjects[fromMovedObjectKey].destroy();
+        delete this.pieceGameObjects[fromMovedObjectKey];
+      } else if (isTransformationAffect(affect)) {
+        // this won't work for other transform cases
+        const movedObject = this.pieceGameObjects[aFromMovedObjectKey];
+        this.pieceRenderer?.changePieceType(
+          movedObject,
+          affect.destPieceType,
+          this.gameInfo!.yourColor
+        );
+      }
+    });
   };
 
   // socket event handlers
 
-  onMove = (event: any) => {
-    this.movePiece(event.detail);
+  onMove = (event: unknown) => {
+    const { affects } = (event as { detail: { affects: Action } }).detail;
+    this.movePiece(affects);
   };
 
-  onShowAvailableMoves = (event: any) => {
-    const { availableMoves, x, y } = event.detail;
-    this.renderAvailableMoves(availableMoves);
+  onShowAvailableMoves = (event: unknown) => {
+    const { actions, x, y } = (
+      event as {
+        detail: {
+          actions: Action[];
+          x: number;
+          y: number;
+        };
+      }
+    ).detail;
+
+    this.renderAvailableMoves(actions);
     this.renderSelectedPieceHightLight(x, y);
   };
 
@@ -332,11 +373,9 @@ export class ChessScene extends Phaser.Scene {
     this.destoryAvailableMoves();
   };
 
-  private listners = {};
-
   addEventListners() {
     this.sceneUpdatesEventEmitter.addEventListener(
-      StateMachineEvents.showAvailableMoves,
+      StateMachineEvents.showSelectedPieceActions,
       this.onShowAvailableMoves
     );
     this.sceneUpdatesEventEmitter.addEventListener(
@@ -351,7 +390,7 @@ export class ChessScene extends Phaser.Scene {
 
   removeEventListners() {
     this.sceneUpdatesEventEmitter.removeEventListener(
-      StateMachineEvents.showAvailableMoves,
+      StateMachineEvents.showSelectedPieceActions,
       this.onShowAvailableMoves
     );
     this.sceneUpdatesEventEmitter.removeEventListener(
