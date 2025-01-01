@@ -1,34 +1,38 @@
 "use client";
 
 import {
-  Affect,
-  AffectType,
+  Action,
   Board,
   BoardMeta,
   Color,
-  PieceType,
+  isKillAffect,
+  isMoveAffect,
+  isTransformationAffect,
+  NewPlayerGameData,
 } from "@real_one_chess_king/game-logic";
 import Phaser from "phaser";
 import { ClassUiToLogicconverter } from "./ui-to-logic";
 import { StateMachine } from "./state-machine";
 import { StateMachineEvents } from "./events";
+import { BoardRenderer } from "./renderer/board.renderer";
+import { PieceRenderer, PieceRendererConfig } from "./renderer/piece.renderer";
+import { coordinateToTileCoordinate } from "./renderer/ui-index-converter";
 
-const colorToTypeToAscii = {
+const BROWN_COLOR = 0xb88b4a;
+const YELLOW_COLOR = 0xe4c170;
+
+const pieceRendererConfig: PieceRendererConfig = {
   [Color.black]: {
-    [PieceType.Pawn]: "♟",
-    [PieceType.Bishop]: "♝",
-    [PieceType.Knight]: "♞",
-    [PieceType.Rook]: "♜",
-    [PieceType.Queen]: "♛",
-    [PieceType.King]: "♚",
+    color: "black",
+    // stroke: "white" as any,
+    fontSize: "64px",
+    // strokeThickness: 2,
   },
   [Color.white]: {
-    [PieceType.Pawn]: "♙",
-    [PieceType.Bishop]: "♗",
-    [PieceType.Knight]: "♘",
-    [PieceType.Rook]: "♖",
-    [PieceType.Queen]: "♕",
-    [PieceType.King]: "♔",
+    color: "white",
+    stroke: "black",
+    fontSize: "64px",
+    strokeThickness: 2,
   },
 };
 
@@ -36,25 +40,37 @@ export class ChessScene extends Phaser.Scene {
   constructor() {
     super({ key: "ChessScene" });
   }
-  private offset = 30;
-  private tileSize = 80;
-  private boardSize = 8;
+  private boardSizeConfig = {
+    tileSize: 80,
+    offset: 30,
+    boardSize: 8,
+  };
 
   private board?: Board;
-  private gameInfo: any = {};
+  private gameInfo?: NewPlayerGameData;
 
   private uiToLogicConverter?: ClassUiToLogicconverter;
-  private userActionsEventEmitter: EventTarget = new EventTarget();
+  private userActionsEventEmitter?: EventTarget;
   private sceneUpdatesEventEmitter: EventTarget = new EventTarget();
 
   private availableMoveObjects: Phaser.GameObjects.Rectangle[] = [];
   private stateMachine?: StateMachine;
 
-  create(data: { boardMeta: BoardMeta; gameInfo: any }) {
+  private boardRender?: BoardRenderer;
+  private pieceRenderer?: PieceRenderer;
+
+  create = (data: {
+    boardMeta: BoardMeta;
+    gameInfo: NewPlayerGameData;
+    userActionsEventEmitter: EventTarget;
+  }) => {
     this.gameInfo = data.gameInfo; // Store the game info
+
+    this.userActionsEventEmitter = data.userActionsEventEmitter;
+
     this.uiToLogicConverter = new ClassUiToLogicconverter(
-      this.tileSize,
-      this.offset,
+      this.boardSizeConfig.tileSize,
+      this.boardSizeConfig.offset,
       data.gameInfo,
       this.userActionsEventEmitter
     );
@@ -66,62 +82,62 @@ export class ChessScene extends Phaser.Scene {
     );
     this.board = this.stateMachine.getBoard();
 
-    this.sceneUpdatesEventEmitter.addEventListener(
-      StateMachineEvents.showAvailableMoves,
-      (event: any) => {
-        const { availableMoves, x, y } = event.detail;
-        this.renderAvailableMoves(availableMoves);
-        this.renderSelectedPieceHightLight(x, y);
-      }
-    );
-    this.sceneUpdatesEventEmitter.addEventListener(
-      StateMachineEvents.hideAvailableMoves,
-      () => {
-        this.destoryAvailableMoves();
-      }
-    );
-    this.sceneUpdatesEventEmitter.addEventListener(
-      StateMachineEvents.pieceMoved,
-      (event: any) => {
-        this.movePiece(event.detail);
-      }
-    );
-    this.sceneUpdatesEventEmitter.addEventListener(
-      StateMachineEvents.gameEnded,
-      () => {
-        // TODO
-      }
-    );
+    this.addEventListners();
 
     this.input.on("pointerdown", this.uiToLogicConverter.handleBoardClick);
+
+    this.boardRender = new BoardRenderer(this.boardSizeConfig, {
+      dark: BROWN_COLOR,
+      light: YELLOW_COLOR,
+    });
+    this.pieceRenderer = new PieceRenderer(
+      this.boardSizeConfig,
+      pieceRendererConfig
+    );
     this.render();
-  }
 
-  preload() {
-    this.load.image("light", "light_tile.png");
-    this.load.image("dark", "dark_tile.png");
-  }
+    this.events.on(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.destroy();
+    });
 
-  shutdown() {
-    // Cleanup resources when the scene is stopped
-    console.log("ChessScene shutdown");
-  }
+    this.events.on(Phaser.Scenes.Events.DESTROY, () => {
+      this.destroy();
+    });
+  };
 
-  destroy() {
-    console.log("ChessScene destroyed");
-  }
+  // destructors
+
+  shutdown = () => {
+    console.log("Scene shutdown");
+    this.removeEventListners();
+    this.stateMachine?.destroy();
+  };
+
+  destroy = () => {
+    console.log("Scene destroy");
+    this.removeEventListners();
+    this.stateMachine?.destroy();
+  };
+
+  // render
 
   render() {
-    this.renderBoard();
+    this.boardRender?.render(this);
     this.renderOffset();
     this.renderPieces();
   }
 
   renderOffset() {
-    for (let row = 0; row < this.boardSize; row++) {
-      const x = this.offset / 2;
-      const y = row * this.tileSize + this.tileSize / 2;
-      const numCoord = this.needReverseY() ? 8 - row : row + 1;
+    if (!this.gameInfo) {
+      throw new Error("Game info is not initialized in the scene");
+    }
+
+    const { tileSize, offset, boardSize } = this.boardSizeConfig;
+    for (let row = 0; row < boardSize; row++) {
+      const x = offset / 2;
+      const y = row * tileSize + tileSize / 2;
+      const [, correctY] = this.correctedXY(x, row);
+      const numCoord = correctY + 1;
       this.add
         .text(x, y, [numCoord].join(","), {
           fontSize: "15px",
@@ -129,9 +145,9 @@ export class ChessScene extends Phaser.Scene {
         })
         .setOrigin(0.5);
     }
-    for (let col = 0; col < this.boardSize; col++) {
-      const x = col * this.tileSize + this.tileSize / 2 + this.offset;
-      const y = this.boardSize * this.tileSize + this.offset / 2;
+    for (let col = 0; col < boardSize; col++) {
+      const x = col * tileSize + tileSize / 2 + offset;
+      const y = boardSize * tileSize + offset / 2;
 
       const charCoord = String.fromCharCode(
         (this.gameInfo.yourColor === Color.black ? 7 - col : col) + 97
@@ -145,184 +161,245 @@ export class ChessScene extends Phaser.Scene {
     }
   }
 
-  renderBoard() {
-    for (let row = 0; row < this.boardSize; row++) {
-      for (let col = 0; col < this.boardSize; col++) {
-        const isDark = (row + col) % 2 === 1;
-        const tileKey = isDark ? "dark" : "light";
-
-        const x = col * this.tileSize + this.tileSize / 2 + this.offset;
-        const y = row * this.tileSize + this.tileSize / 2;
-
-        this.add
-          .image(x, y, tileKey)
-          .setDisplaySize(this.tileSize, this.tileSize);
-      }
-    }
-  }
-
   private pieceGameObjects: { [key in string]: Phaser.GameObjects.Text } = {};
   private coordToMapkey(x: number, y: number) {
     return `${x}${y}`;
   }
 
-  private needReverseX() {
-    return this.gameInfo.yourColor === Color.white;
-  }
-  private needReverseY() {
-    return this.gameInfo.yourColor === Color.white;
-  }
+  // private needReverseX() {
+  //   return this.gameInfo.yourColor === Color.white;
+  // }
+  // private needReverseY() {
+  //   return this.gameInfo.yourColor === Color.white;
+  // }
 
   renderPieces() {
     if (!this.board) {
       throw new Error("Board is not initialized in the scene");
     }
-
-    this.board.squares.forEach((row, ri) => {
-      const rowIndex: number = this.needReverseY() ? 7 - ri : ri;
-
-      row.forEach((cell, ci) => {
-        const colIndex: number = this.needReverseX() ? 7 - ci : ci;
-
-        const piece = cell.getPiece();
-        if (piece) {
-          const x = colIndex * this.tileSize + this.tileSize / 2 + this.offset;
-          const y = rowIndex * this.tileSize + this.tileSize / 2;
-          const pieceGameObject = this.add
-            .text(x, y, this.typeToAscii(piece.type, piece.color), {
-              fontSize: "64px",
-              color: piece.color === "white" ? "#FFF" : "#000",
-            })
-            .setOrigin(0.5);
-          this.pieceGameObjects[this.coordToMapkey(ci, ri)] = pieceGameObject;
-        }
+    if (!this.pieceRenderer) {
+      throw new Error("Piece renderer is not initialized");
+    }
+    const colors = [Color.white, Color.black];
+    for (const color of colors) {
+      this.board.forEachPiece(color, (piece, x, y) => {
+        // const colIndex: number = this.correctX(ci); //this.needReverseX() ? 7 - ci : ci;
+        // if (piece) {
+        const correctedXY = this.correctedXY(x, y);
+        const pieceGameObject = this.pieceRenderer!.renderPiece(
+          this,
+          piece,
+          correctedXY[0],
+          correctedXY[1]
+        );
+        this.pieceGameObjects[this.coordToMapkey(x, y)] = pieceGameObject;
+        // }
       });
-    });
+    }
+    // this.board.forEachPiece((row, ri) => {
+    //   const rowIndex: number = this.correctY(ri); //this.needReverseY() ? 7 - ri : ri;
+    //   row.forEach((cell, ci) => {
+    //     const colIndex: number = this.correctX(ci); //this.needReverseX() ? 7 - ci : ci;
+    //     const piece = cell.getPiece();
+    //     if (piece) {
+    //       const pieceGameObject = this.pieceRenderer!.renderPiece(
+    //         this,
+    //         piece,
+    //         colIndex,
+    //         rowIndex
+    //       );
+    //       this.pieceGameObjects[this.coordToMapkey(ci, ri)] = pieceGameObject;
+    //     }
+    //   });
+    // });
   }
-  renderSelectedPieceHightLight(x: number, y: number) {
+  renderSelectedPieceHightLight(rawX: number, rawY: number) {
     if (!this.board) {
       throw new Error("Board is not initialized in the scene");
+    }
+    const [x, y] = this.correctedXY(rawX, rawY);
+    // if (this.gameInfo.yourColor === Color.white) {
+    //   y = 7 - y;
+    //   x = 7 - x;
+    // }
+    // const canvasX = x * this.tileSize + this.tileSize / 2 + this.offset;
+    // const canvasY = y * this.tileSize + this.tileSize / 2;
+
+    const selectedPieceObj = this.boardRender!.addHighlight(this, x, y);
+    this.availableMoveObjects.push(selectedPieceObj);
+  }
+
+  // private correctY = (y: number) => (y = 7 - y);
+  // private correctX = (x: number) => (x = 7 - x);
+  private correctedXY = (x: number, y: number) => {
+    if (!this.gameInfo) {
+      throw new Error("Game info is not initialized in the scene");
     }
     if (this.gameInfo.yourColor === Color.white) {
       y = 7 - y;
       x = 7 - x;
     }
-    const canvasX = x * this.tileSize + this.tileSize / 2 + this.offset;
-    const canvasY = y * this.tileSize + this.tileSize / 2;
-    const selectedPieceObj = this.add.rectangle(
-      canvasX,
-      canvasY,
-      this.tileSize,
-      this.tileSize,
-      0x0000ff,
-      0.5
-    );
-    this.availableMoveObjects.push(selectedPieceObj);
-  }
-  renderAvailableMoves(availableMoves: [number, number][]) {
+    return [x, y];
+  };
+
+  renderAvailableMoves(actions: Action[]) {
     if (!this.board) {
       throw new Error("Board is not initialized in the scene");
     }
-    availableMoves.forEach(([x, y]) => {
-      if (this.gameInfo.yourColor === Color.white) {
-        y = 7 - y;
-        x = 7 - x;
+
+    const uniqMoves: { [key in string]: { [key in string]: boolean } } = {};
+    actions.forEach((action) => {
+      for (const affect of action) {
+        // TODO there is space for imporvement
+        // change colors for affect types,
+        // add better highlight when user mouse is above of the highlited action
+        if (isMoveAffect(affect) && affect.userSelected) {
+          const [x, y] = this.correctedXY(affect.to[0], affect.to[1]);
+          if (!uniqMoves[y]) {
+            uniqMoves[y] = {};
+          }
+          if (!uniqMoves[y][x]) {
+            uniqMoves[y][x] = true;
+            const availableMoveObj = this.boardRender!.addHighlight(this, x, y);
+            this.availableMoveObjects.push(availableMoveObj);
+          }
+        }
       }
-      const canvasX = x * this.tileSize + this.tileSize / 2 + this.offset;
-      const canvasY = y * this.tileSize + this.tileSize / 2;
-      const availableMoveObj = this.add.rectangle(
-        canvasX,
-        canvasY,
-        this.tileSize,
-        this.tileSize,
-        0xff0000,
-        0.5
-      );
-      this.availableMoveObjects.push(availableMoveObj);
     });
+    // .filter(([x, y]) => {
+    //   if (!uniqMoves[y]) {
+    //     uniqMoves[y] = {};
+    //     return true;
+    //   }
+    //   if (!uniqMoves[y][x]) {
+    //     uniqMoves[y][x] = true;
+    //     return true;
+    //   }
+    //   return false;
+    // })
+    // .forEach(([x, y]) => {
+    //   if (this.gameInfo.yourColor === Color.white) {
+    //     y = 7 - y;
+    //     x = 7 - x;
+    //   }
+
+    //   // some availableMoves can have similar coords if user need to pick something else
+    //   if (
+    //     this.availableMoveObjects.find((obj) => obj.x === x && obj.y === y)
+    //   ) {
+    //     return;
+    //   }
+
+    //   const availableMoveObj = this.boardRender!.addHighlight(this, x, y);
+    //   this.availableMoveObjects.push(availableMoveObj);
+    // });
   }
-  private destoryAvailableMoves() {
+  destoryAvailableMoves() {
     this.availableMoveObjects.forEach((obj) => obj.destroy());
     this.availableMoveObjects = [];
   }
 
-  movePiece = ({
-    from,
-    to,
-    affects,
-  }: {
-    from: [number, number];
-    to: [number, number];
-    affects: Affect[];
-  }) => {
-    this.destoryAvailableMoves();
-    const [fromX, fromY] = from;
-    const [toX, toY] = to;
-
-    const processedToY = this.needReverseY() ? 7 - toY : toY;
-    const processedToX = this.needReverseX() ? 7 - toX : toX;
-
-    const fromMovedObjectKey = this.coordToMapkey(fromX, fromY);
-    const movedObject = this.pieceGameObjects[fromMovedObjectKey];
-
-    const toMovedObjectKey = this.coordToMapkey(toX, toY);
-
-    if (affects && affects.length > 0) {
-      affects.forEach((affect) => {
-        if (affect.type === AffectType.kill && affect.from) {
-          const [aFromX, aFromY] = affect.from;
-
-          const fromMovedObjectKey = this.coordToMapkey(aFromX, aFromY);
-          this.pieceGameObjects[fromMovedObjectKey].destroy();
-          delete this.pieceGameObjects[fromMovedObjectKey];
-        }
-      });
+  movePiece = (affects: Action) => {
+    if (!this.gameInfo) {
+      throw new Error("Game info is not initialized in the scene");
     }
 
-    const canvasX =
-      processedToX * this.tileSize + this.tileSize / 2 + this.offset;
-    const canvasY = processedToY * this.tileSize + this.tileSize / 2;
+    affects.forEach((affect) => {
+      const [aFromX, aFromY] = affect.from;
 
-    movedObject.setX(canvasX);
-    movedObject.setY(canvasY);
-    movedObject.setOrigin(0.5, 0.5);
+      const aFromMovedObjectKey = this.coordToMapkey(aFromX, aFromY);
 
-    delete this.pieceGameObjects[fromMovedObjectKey];
-    this.pieceGameObjects[toMovedObjectKey] = movedObject;
+      if (isMoveAffect(affect) && affect.from) {
+        const [aToX, aToY] = affect.to;
 
-    if (affects && affects.length > 0) {
-      affects.forEach((affect) => {
-        if (affect.type === AffectType.move && affect.from) {
-          const [aFromX, aFromY] = affect.from;
+        const [processedToX, processedToY] = this.correctedXY(aToX, aToY);
+        const aToMovedObjectKey = this.coordToMapkey(aToX, aToY);
 
-          if (!affect.to) {
-            throw new Error("Affect type move should have to field");
-          }
-          const [aToX, aToY] = affect.to;
-          const processedToY = this.needReverseY() ? 7 - aToY : aToY;
-          const processedToX = this.needReverseX() ? 7 - aToX : aToX;
+        const { canvasX, canvasY } = coordinateToTileCoordinate(
+          processedToX,
+          processedToY,
+          this.boardSizeConfig
+        );
 
-          const aFromMovedObjectKey = this.coordToMapkey(aFromX, aFromY);
-          const aToMovedObjectKey = this.coordToMapkey(aToX, aToY);
+        const movedObject = this.pieceGameObjects[aFromMovedObjectKey];
 
-          const canvasX =
-            processedToX * this.tileSize + this.tileSize / 2 + this.offset;
-          const canvasY = processedToY * this.tileSize + this.tileSize / 2;
+        movedObject.setX(canvasX);
+        movedObject.setY(canvasY);
+        movedObject.setOrigin(0.5, 0.5);
 
-          const movedObject = this.pieceGameObjects[aFromMovedObjectKey];
+        this.pieceGameObjects[aToMovedObjectKey] = movedObject;
+        delete this.pieceGameObjects[aFromMovedObjectKey];
+      } else if (isKillAffect(affect)) {
+        const [aFromX, aFromY] = affect.from;
 
-          movedObject.setX(canvasX);
-          movedObject.setY(canvasY);
-          movedObject.setOrigin(0.5, 0.5);
-
-          this.pieceGameObjects[aToMovedObjectKey] = movedObject;
-          delete this.pieceGameObjects[aFromMovedObjectKey];
-        }
-      });
-    }
+        const fromMovedObjectKey = this.coordToMapkey(aFromX, aFromY);
+        this.pieceGameObjects[fromMovedObjectKey].destroy();
+        delete this.pieceGameObjects[fromMovedObjectKey];
+      } else if (isTransformationAffect(affect)) {
+        // this won't work for other transform cases
+        const movedObject = this.pieceGameObjects[aFromMovedObjectKey];
+        this.pieceRenderer?.changePieceType(
+          movedObject,
+          affect.destPieceType,
+          this.gameInfo!.yourColor
+        );
+      }
+    });
   };
 
-  typeToAscii(type: PieceType, color: Color) {
-    return colorToTypeToAscii[color][type];
+  // socket event handlers
+
+  onMove = (event: unknown) => {
+    const { affects } = (event as { detail: { affects: Action } }).detail;
+    this.movePiece(affects);
+  };
+
+  onShowAvailableMoves = (event: unknown) => {
+    const { actions, x, y } = (
+      event as {
+        detail: {
+          actions: Action[];
+          x: number;
+          y: number;
+        };
+      }
+    ).detail;
+
+    this.renderAvailableMoves(actions);
+    this.renderSelectedPieceHightLight(x, y);
+  };
+
+  onHideAvailableMoves = () => {
+    this.destoryAvailableMoves();
+  };
+
+  addEventListners() {
+    this.sceneUpdatesEventEmitter.addEventListener(
+      StateMachineEvents.showSelectedPieceActions,
+      this.onShowAvailableMoves
+    );
+    this.sceneUpdatesEventEmitter.addEventListener(
+      StateMachineEvents.hideAvailableMoves,
+      this.onHideAvailableMoves
+    );
+    this.sceneUpdatesEventEmitter.addEventListener(
+      StateMachineEvents.pieceMoved,
+      this.onMove
+    );
+  }
+
+  removeEventListners() {
+    this.sceneUpdatesEventEmitter.removeEventListener(
+      StateMachineEvents.showSelectedPieceActions,
+      this.onShowAvailableMoves
+    );
+    this.sceneUpdatesEventEmitter.removeEventListener(
+      StateMachineEvents.hideAvailableMoves,
+      this.onHideAvailableMoves
+    );
+    this.sceneUpdatesEventEmitter.removeEventListener(
+      StateMachineEvents.pieceMoved,
+      this.onMove
+    );
   }
 }
