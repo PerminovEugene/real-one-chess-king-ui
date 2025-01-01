@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import wsClientInstance from "../../socket/index";
 import dynamic from "next/dynamic";
 
@@ -12,10 +12,14 @@ export function NotificationWrapper({
   isConnected,
   showOponentDisconnected,
   showInQueueMessage,
+  showWinMessage,
+  showOpponentWon,
 }: any) {
   return (
     <div>
       {!isConnected && <p>Connecting...</p>}
+      {showWinMessage && <p>You won! +respect ^^.</p>}
+      {showOpponentWon && <p>You lost! -respect :| </p>}
       {showOponentDisconnected && (
         <div>
           <p>Opponent disconnected :| But You won! :D</p>
@@ -30,12 +34,22 @@ export function NotificationWrapper({
 export default function GamePage() {
   const [isConnected, setIsConnected] = useState(false);
   const [opponentDisconnected, setOpponentDisconnected] = useState(false);
-  const [gameData, setGameData] = useState<any>(null);
+  const [isWon, setWin] = useState(false);
+  const [isLost, setLost] = useState(false);
+
   const [inQueue, setInQueue] = useState(false);
+
+  const [gameData, setGameData] = useState<any>(null);
 
   const onOpponentDisconnected = () => {
     setGameData(null);
     setOpponentDisconnected(true);
+  };
+  const onWin = () => {
+    setWin(true);
+  };
+  const onLost = () => {
+    setLost(true);
   };
 
   useEffect(() => {
@@ -47,6 +61,8 @@ export default function GamePage() {
 
     initConnection();
     wsClientInstance.subscribeOnOpponentDisconnected(onOpponentDisconnected);
+    wsClientInstance.subscribeOnWinEvent(onWin);
+    wsClientInstance.subscribeOnLostEvent(onLost);
   }, []);
 
   const findGame = () => {
@@ -58,7 +74,6 @@ export default function GamePage() {
   const showInQueueMessage = isConnected && !gameData && inQueue;
   const showBoard = isConnected && gameData && !inQueue;
   const showOponentDisconnected = isConnected && opponentDisconnected;
-
   return (
     <div className="grid items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
       {showFindButton && (
@@ -73,6 +88,8 @@ export default function GamePage() {
         isConnected={isConnected}
         showOponentDisconnected={showOponentDisconnected}
         showInQueueMessage={showInQueueMessage}
+        showWinMessage={isWon}
+        showOpponentWon={isLost}
       />
       {showBoard && <DynamicGameComponent gameData={gameData} />}
     </div>

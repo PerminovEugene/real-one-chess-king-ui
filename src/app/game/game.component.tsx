@@ -1,20 +1,29 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
-import { Board, Color } from "@real_one_chess_king/game-logic";
+import { Board, Color, reverseColor } from "@real_one_chess_king/game-logic";
 import Phaser from "phaser";
 import { ChessScene } from "./chess-scene";
+import wsClientInstance from "../../socket/index";
+
+function Hint({ isMyturn }: any) {
+  return <div>{isMyturn ? <p>Your turn</p> : <p>Opponent's turn</p>}</div>;
+}
 
 const GameComponent = ({
-  gameData: { board, gameInfo },
+  gameData: { boardMeta, gameInfo },
 }: {
   gameData: {
-    board: Board;
+    boardMeta: Board;
     gameInfo: any;
   };
 }) => {
   const phaserGameRef = useRef<HTMLDivElement | null>(null);
   const gameInstanceRef = useRef<Phaser.Game | null>(null); // Track Phaser instance
+
+  const [currentTurnColor, setCurrentTurnColor] = React.useState<Color>(
+    Color.white
+  );
 
   useEffect(() => {
     if (gameInstanceRef.current) {
@@ -33,12 +42,21 @@ const GameComponent = ({
 
       gameInstanceRef.current = new Phaser.Game(config);
       gameInstanceRef.current.scene.start("ChessScene", {
-        boardMeta: board,
+        boardMeta: boardMeta,
         gameInfo,
       });
     };
 
-    initializeGame();
+    if (boardMeta && gameInfo) {
+      initializeGame();
+      wsClientInstance.subscribeOnOpponentTurn(() => {
+        setCurrentTurnColor(gameInfo.yourColor);
+      });
+      const opponentColor = reverseColor(gameInfo.yourColor);
+      wsClientInstance.subscribeOnTurnConfirmed(() => {
+        setCurrentTurnColor(opponentColor);
+      });
+    }
 
     return () => {
       if (gameInstanceRef.current) {
@@ -46,17 +64,18 @@ const GameComponent = ({
         gameInstanceRef.current.destroy(true); // Properly clean up Phaser instance
         gameInstanceRef.current = null;
       }
-      // phaserGameRef.current = null;
     };
-  }, [board, gameInfo]); // Dependencies ensure effect is stable
+  }, [boardMeta, gameInfo]); // Dependencies ensure effect is stable
 
   const myColor = gameInfo.yourColor;
   const myName = gameInfo.players[myColor].name;
   const opponentColor = myColor === Color.white ? Color.black : Color.white;
   const opponentName = gameInfo.players[opponentColor].name;
+  const isMyturn = currentTurnColor === myColor;
 
   return (
     <div>
+      <Hint isMyturn={isMyturn} />
       <p>{opponentName}</p>
       <div id="game-container" ref={phaserGameRef}></div>
       <div>{myName}</div>

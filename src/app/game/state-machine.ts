@@ -8,10 +8,9 @@ import {
   Game,
   Player,
   TurnType,
-  Piece,
-  fromChessToLogic,
-  fromLogicToChess,
   AvailableMove,
+  CheckMateGlobalRule2,
+  Coordinate,
 } from "@real_one_chess_king/game-logic";
 import { StateMachineEvents, TileClickedPayload, UiEvent } from "./events";
 import socket from "../../socket/index";
@@ -22,7 +21,11 @@ enum GameStateName {
 }
 
 export class StateMachine {
-  private board: Board;
+  public board: Board;
+  private selectedPiece?: [number, number];
+  private game: Game;
+  private state = GameStateName.Idle;
+  private treeLength = 3;
 
   constructor(
     boardMeta: BoardMeta,
@@ -30,11 +33,19 @@ export class StateMachine {
     private userActionsEventEmitter: EventTarget,
     private sceneUpdatesEventEmitter: EventTarget
   ) {
-    this.board = new Board();
-    this.board.fillBoard(boardMeta);
+    const board = new Board();
+    board.fillBoardByMeta(boardMeta);
     const white = new Player(Color.white); // TODO fix players info
     const black = new Player(Color.black);
-    this.game = new Game(white, black, this.board);
+    this.game = new Game(
+      white,
+      black,
+      board,
+      [new CheckMateGlobalRule2(board)],
+      this.treeLength
+    );
+    this.board = board;
+
     this.setupListeners();
   }
 
@@ -42,53 +53,23 @@ export class StateMachine {
     return this.board;
   }
 
-  private availableMoves: AvailableMove[] = [];
-  private game: Game | undefined;
-
-  private state = GameStateName.Idle;
-
-  mapCoordsToChessFormat(x: number, y: number): string {
-    if (this.gameInfo.yourColor === Color.white) {
-      return `${String.fromCharCode(97 + (7 - x))}${y + 1}`;
-    }
-    return `${String.fromCharCode(97 + x)}${y}`;
-  }
-
-  private selectedPiece?: [number, number];
-
   private handleTileClickedInIdleState(x: number, y: number) {
-    const selectedPiece = this.board.squares[y][x].getPiece();
-    if (selectedPiece) {
-      if (selectedPiece.color === this.gameInfo.yourColor) {
-        console.log("Select the piece at row: ", y, " col: ", x);
-        this.selectedPiece = [x, y];
-        this.state = GameStateName.PieceSelected;
-
-        const pieceRules = selectedPiece.movementRules;
-        pieceRules?.forEach((rule) => {
-          console.log("---->", rule, this.game?.turns);
-          const ruleMoves = rule.availableMoves(
-            x,
-            y,
-            this.board!.squares,
-            this.game?.turns as Turn[]
-          );
-          this.availableMoves.push(...ruleMoves);
-        });
-        console.log(pieceRules);
-
-        this.sceneUpdatesEventEmitter.dispatchEvent(
-          new CustomEvent(StateMachineEvents.showAvailableMoves, {
-            detail: {
-              availableMoves: this.availableMoves,
-              x,
-              y,
-            },
-          })
-        );
-      } else {
-      }
+    const from: Coordinate = [x, y];
+    const moves = this.game.getAvailableMovementsForCoordinate(from);
+    if (!moves?.length) {
+      return;
     }
+    this.state = GameStateName.PieceSelected;
+    this.selectedPiece = from;
+    this.sceneUpdatesEventEmitter.dispatchEvent(
+      new CustomEvent(StateMachineEvents.showAvailableMoves, {
+        detail: {
+          availableMoves: moves,
+          x,
+          y,
+        },
+      })
+    );
   }
 
   findMoveInAvailableMoves = function (
@@ -106,48 +87,41 @@ export class StateMachine {
   };
 
   private handleTileClickedInPieceSelectedState(x: number, y: number) {
-    const [fromX, fromY] = this.selectedPiece!;
-    const turn: Turn = {
-      color: this.gameInfo.yourColor,
-      type: TurnType.Move,
-      from: this.selectedPiece!,
-      to: [x, y],
-      timestamp: new Date().toISOString(),
-      pieceType: this.board.squares[fromY][fromX].getPiece()!.type,
-      affects: [],
-    };
+    if (!this.selectedPiece) {
+      throw new Error("Piece is not selected, but should be");
+    }
+
+    const from: Coordinate = this.selectedPiece;
+    const to: Coordinate = [x, y];
+
+    const moveResult = this.game.getMovementResult(from, to);
     this.state = GameStateName.Idle;
-
-    console.log("Available moves: ", this.availableMoves);
-
-    const move = this.availableMoves.find(
-      (move) => move[0] === x && move[1] === y
-    );
-    // const move = this.findMoveInAvailableMoves(this.availableMoves, [x, y]);
-
-    console.log("Found move: ", move);
-    if (!move) {
+    if (!moveResult) {
       this.sceneUpdatesEventEmitter.dispatchEvent(
         new CustomEvent(StateMachineEvents.hideAvailableMoves)
       );
-      this.availableMoves = [];
       return;
     }
-    this.availableMoves = [];
 
-    console.log("Move the piece from row: ", fromY, " col: ", fromX, turn);
-
-    turn.affects = move[2];
-    console.log("turn: ", turn);
-
+    const [fromX, fromY] = from;
+    const turn: Turn = {
+      color: this.gameInfo.yourColor,
+      type: TurnType.Move,
+      from,
+      to,
+      timestamp: new Date().toISOString(),
+      pieceType: this.board.squares[fromY][fromX].getPiece()!.type,
+      affects: moveResult.affects,
+    };
     this.game?.processTurn(turn);
+
     socket.sendTurn(turn);
     this.sceneUpdatesEventEmitter.dispatchEvent(
       new CustomEvent(StateMachineEvents.pieceMoved, {
         detail: {
-          from: [this.selectedPiece![0], this.selectedPiece![1]],
-          to: [x, y],
-          affects: move[2],
+          from,
+          to,
+          affects: moveResult.affects,
         },
       })
     );
@@ -175,16 +149,7 @@ export class StateMachine {
       const [fromX, fromY] = turn.from;
       const [toX, toY] = turn.to;
 
-      const fromPiece = this.board.squares[fromY][fromX].popPiece() as Piece;
-      const toCell = this.board.squares[toY][toX];
-
-      if (!toCell.isEmpty()) {
-        toCell.popPiece();
-      }
-      toCell.putPiece(fromPiece);
-
-      this.game?.turns.push(turn);
-      this.updateGameNextTurn();
+      this.game?.processTurn(turn);
 
       this.sceneUpdatesEventEmitter.dispatchEvent(
         new CustomEvent(StateMachineEvents.pieceMoved, {
@@ -194,6 +159,18 @@ export class StateMachine {
             affects: turn.affects,
           },
         })
+      );
+    });
+
+    // locks ui
+    socket.subscribeOnWinEvent(() => {
+      this.sceneUpdatesEventEmitter.dispatchEvent(
+        new CustomEvent(StateMachineEvents.gameEnded)
+      );
+    });
+    socket.subscribeOnWinEvent(() => {
+      this.sceneUpdatesEventEmitter.dispatchEvent(
+        new CustomEvent(StateMachineEvents.gameEnded)
       );
     });
   }

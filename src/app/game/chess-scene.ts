@@ -70,7 +70,6 @@ export class ChessScene extends Phaser.Scene {
       StateMachineEvents.showAvailableMoves,
       (event: any) => {
         const { availableMoves, x, y } = event.detail;
-        console.log("availableMoves", availableMoves);
         this.renderAvailableMoves(availableMoves);
         this.renderSelectedPieceHightLight(x, y);
       }
@@ -85,6 +84,12 @@ export class ChessScene extends Phaser.Scene {
       StateMachineEvents.pieceMoved,
       (event: any) => {
         this.movePiece(event.detail);
+      }
+    );
+    this.sceneUpdatesEventEmitter.addEventListener(
+      StateMachineEvents.gameEnded,
+      () => {
+        // TODO
       }
     );
 
@@ -261,9 +266,17 @@ export class ChessScene extends Phaser.Scene {
     const movedObject = this.pieceGameObjects[fromMovedObjectKey];
 
     const toMovedObjectKey = this.coordToMapkey(toX, toY);
-    const killedObject = this.pieceGameObjects[toMovedObjectKey];
-    if (killedObject) {
-      killedObject.destroy();
+
+    if (affects && affects.length > 0) {
+      affects.forEach((affect) => {
+        if (affect.type === AffectType.kill && affect.from) {
+          const [aFromX, aFromY] = affect.from;
+
+          const fromMovedObjectKey = this.coordToMapkey(aFromX, aFromY);
+          this.pieceGameObjects[fromMovedObjectKey].destroy();
+          delete this.pieceGameObjects[fromMovedObjectKey];
+        }
+      });
     }
 
     const canvasX =
@@ -277,17 +290,33 @@ export class ChessScene extends Phaser.Scene {
     delete this.pieceGameObjects[fromMovedObjectKey];
     this.pieceGameObjects[toMovedObjectKey] = movedObject;
 
-    console.log("affects", affects);
     if (affects && affects.length > 0) {
       affects.forEach((affect) => {
-        const [x, y] = affect.from;
-        // const processedY = this.needReverseY() ? 7 - y : y;
-        // const processedX = this.needReverseX() ? 7 - x : x;
+        if (affect.type === AffectType.move && affect.from) {
+          const [aFromX, aFromY] = affect.from;
 
-        if (affect.type === AffectType.kill) {
-          const fromMovedObjectKey = this.coordToMapkey(x, y);
-          this.pieceGameObjects[fromMovedObjectKey].destroy();
-          delete this.pieceGameObjects[fromMovedObjectKey];
+          if (!affect.to) {
+            throw new Error("Affect type move should have to field");
+          }
+          const [aToX, aToY] = affect.to;
+          const processedToY = this.needReverseY() ? 7 - aToY : aToY;
+          const processedToX = this.needReverseX() ? 7 - aToX : aToX;
+
+          const aFromMovedObjectKey = this.coordToMapkey(aFromX, aFromY);
+          const aToMovedObjectKey = this.coordToMapkey(aToX, aToY);
+
+          const canvasX =
+            processedToX * this.tileSize + this.tileSize / 2 + this.offset;
+          const canvasY = processedToY * this.tileSize + this.tileSize / 2;
+
+          const movedObject = this.pieceGameObjects[aFromMovedObjectKey];
+
+          movedObject.setX(canvasX);
+          movedObject.setY(canvasY);
+          movedObject.setOrigin(0.5, 0.5);
+
+          this.pieceGameObjects[aToMovedObjectKey] = movedObject;
+          delete this.pieceGameObjects[aFromMovedObjectKey];
         }
       });
     }

@@ -26,9 +26,6 @@ export class ClassUiToLogicconverter {
       row = 7 - row;
       col = 7 - col;
     }
-    if (this.gameInfo.yourColor === Color.black) {
-      // col = 7 - col;
-    }
 
     // Check if the click is inside the chessboard
     if (this.isClickInBoard(col, row)) {

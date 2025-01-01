@@ -42,6 +42,12 @@ class WSClient {
     socket.emit(WSClientGameEvent.FindGame, { name: "player" + Math.random() });
   }
 
+  subscribeOnTurnConfirmed(onTurnConfirmed: () => void) {
+    socket.on(WSServerGameEvent.TurnConfirmed, (data) => {
+      onTurnConfirmed();
+    });
+  }
+
   subscribeOnOpponentTurn(updateBoard: (turn: Turn) => void) {
     socket.on(WSServerGameEvent.OpponentTurn, (data) => {
       updateBoard(data);
@@ -57,6 +63,17 @@ class WSClient {
 
   sendTurn(turn: Turn) {
     socket.emit(WSClientGameEvent.Turn, turn);
+  }
+
+  subscribeOnWinEvent(onWin: Function) {
+    socket.on(WSServerGameEvent.YouWon, () => {
+      onWin();
+    });
+  }
+  subscribeOnLostEvent(onLost: Function) {
+    socket.on(WSServerGameEvent.OpponentWon, () => {
+      onLost();
+    });
   }
 
   subscribe() {}
