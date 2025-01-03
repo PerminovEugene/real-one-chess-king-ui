@@ -2,7 +2,7 @@
 
 import React, { useEffect } from "react";
 import { Color, reverseColor } from "@real_one_chess_king/game-logic";
-import wsClientInstance from "../../socket/index";
+import wsClientInstance from "../../../socket/index";
 
 const TurnInfoComponent = ({ myColor }: { myColor: Color }) => {
   const [currentTurnColor, setCurrentTurnColor] = React.useState<Color>(
@@ -29,7 +29,7 @@ const TurnInfoComponent = ({ myColor }: { myColor: Color }) => {
 
   const isMyturn = currentTurnColor === myColor;
 
-  return <div>{isMyturn ? <p>Your turn</p> : <p>Opponent's turn</p>}</div>;
+  return <div>{isMyturn ? <p>Your turn</p> : <p>Opponent&apos;s turn</p>}</div>;
 };
 
 export default TurnInfoComponent;

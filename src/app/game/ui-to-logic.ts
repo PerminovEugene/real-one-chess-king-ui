@@ -1,11 +1,11 @@
-import { Board, Color, Game } from "@real_one_chess_king/game-logic";
+import { Color, NewPlayerGameData } from "@real_one_chess_king/game-logic";
 import { TileClickedPayload, UiEvent } from "./events";
 
 export class ClassUiToLogicconverter {
   constructor(
     private tileSize: number,
     private offset: number,
-    private gameInfo: any,
+    private gameInfo: NewPlayerGameData,
     private eventEmitter: EventTarget
   ) {}
 
@@ -13,7 +13,7 @@ export class ClassUiToLogicconverter {
     return x >= 0 && x < 8 && y >= 0 && y < 8;
   }
 
-  public handleBoardClick = (pointer: any) => {
+  public handleBoardClick = (pointer: { x: number; y: number }) => {
     // Get the canvas coordinates
     const canvasX = pointer.x;
     const canvasY = pointer.y;

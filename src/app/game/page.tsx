@@ -3,49 +3,22 @@
 import React, { useEffect, useState } from "react";
 import wsClientInstance from "../../socket/index";
 import dynamic from "next/dynamic";
-import TurnInfoComponent from "./turn-info.component";
+import TurnInfoComponent from "./components/turn-info.component";
 import { NewGameData } from "./game.component";
+import { GameStatusBar } from "./components/game-status-bar.component";
+import { SurrenderButton } from "./components/surrender.button";
 
 const DynamicGameComponent = dynamic(() => import("./game.component"), {
   loading: () => <p>Loading...</p>,
 });
-
-type NotificationWrapperProps = {
-  isConnected: boolean;
-  showOponentDisconnected: boolean;
-  showInQueueMessage: boolean;
-  showWinMessage: boolean;
-  showOpponentWon: boolean;
-};
-
-export function NotificationWrapper({
-  isConnected,
-  showOponentDisconnected,
-  showInQueueMessage,
-  showWinMessage,
-  showOpponentWon,
-}: NotificationWrapperProps) {
-  return (
-    <div>
-      {!isConnected && <p>Connecting...</p>}
-      {showWinMessage && <p>You won! +respect ^^.</p>}
-      {showOpponentWon && <p>You lost! -respect :| </p>}
-      {showOponentDisconnected && (
-        <div>
-          <p>Opponent disconnected :| But You won! :D</p>
-          <p>Let&#39;s try again</p>
-        </div>
-      )}
-      {showInQueueMessage && <p>Waiting for opponent...</p>}
-    </div>
-  );
-}
 
 export default function GamePage() {
   const [isConnected, setIsConnected] = useState(false);
   const [opponentDisconnected, setOpponentDisconnected] = useState(false);
   const [isWon, setWin] = useState(false);
   const [isLost, setLost] = useState(false);
+  const [isMeSurrender, setMySurrender] = useState(false);
+  const [isOpponentSurrender, setOpponentSurrender] = useState(false);
   const [inQueue, setInQueue] = useState(false);
   const [gameData, setGameData] = useState<NewGameData | null>(null);
 
@@ -59,6 +32,19 @@ export default function GamePage() {
   const onLost = () => {
     setLost(true);
   };
+  const onOpponentSurrender = () => {
+    setOpponentSurrender(true);
+  };
+  const onSurrenderConfirmed = () => {
+    setMySurrender(true);
+  };
+  const onGameFound = (data: NewGameData) => {
+    setInQueue(false);
+    setGameData(data);
+  };
+  const onInQueue = () => {
+    setInQueue(true);
+  };
 
   useEffect(() => {
     console.log("CONNECTING");
@@ -71,6 +57,8 @@ export default function GamePage() {
     wsClientInstance.subscribeOnOpponentDisconnected(onOpponentDisconnected);
     wsClientInstance.subscribeOnWinEvent(onWin);
     wsClientInstance.subscribeOnLostEvent(onLost);
+    wsClientInstance.subscribeOnOpponentSurrender(onOpponentSurrender);
+    wsClientInstance.subscribeOnSurrenderConfirmed(onSurrenderConfirmed);
     return () => {
       wsClientInstance.unsubscribeOnOpponentDisconnected(
         onOpponentDisconnected
@@ -79,17 +67,10 @@ export default function GamePage() {
       wsClientInstance.unsubscribeOnLostEvent(onLost);
       wsClientInstance.unsubscribeOnWaitingForOpponent(onInQueue);
       wsClientInstance.unsubscribeOnGameStarted(onGameFound);
+      wsClientInstance.unsubscribeOnOpponentSurrender(onOpponentSurrender);
+      wsClientInstance.unsubscribeOnSurrenderConfirmed(onSurrenderConfirmed);
     };
   }, []);
-
-  const onGameFound = (data: NewGameData) => {
-    setInQueue(false);
-    setGameData(data);
-  };
-
-  const onInQueue = () => {
-    setInQueue(true);
-  };
 
   const findGame = () => {
     setOpponentDisconnected(false);
@@ -108,10 +89,15 @@ export default function GamePage() {
     !showOponentDisconnected &&
     !showInQueueMessage &&
     !showFindButton;
-  const gameInProgress = onlyBoardVisible && !isWon && !isLost;
+  const gameInProgress =
+    onlyBoardVisible &&
+    !isWon &&
+    !isLost &&
+    !isMeSurrender &&
+    !isOpponentSurrender;
 
   return (
-    <div className="grid items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
+    <div className="grid items-center justify-items-center min-h-screen p-8 pb-5 sm:p-5 font-[family-name:var(--font-geist-sans)]">
       {showFindButton && (
         <button
           onClick={findGame}
@@ -120,12 +106,14 @@ export default function GamePage() {
           Find Game
         </button>
       )}
-      <NotificationWrapper
+      <GameStatusBar
         isConnected={isConnected}
         showOponentDisconnected={showOponentDisconnected}
         showInQueueMessage={showInQueueMessage}
         showWinMessage={isWon}
         showOpponentWon={isLost}
+        showOpponentSurrender={isOpponentSurrender}
+        showMySurrender={isMeSurrender}
       />
       {onlyBoardVisible && (
         <React.Fragment>
@@ -134,6 +122,7 @@ export default function GamePage() {
             <TurnInfoComponent myColor={gameData.gameInfo.yourColor} />
           )}
           <DynamicGameComponent gameData={gameData} />
+          {gameInProgress && <SurrenderButton />}
         </React.Fragment>
       )}
     </div>

@@ -14,9 +14,5 @@ export enum StateMachineEvents {
   pieceMoved = "pieceMoved",
   showSelectedPieceActions = "showAvailableMoves",
   hideAvailableMoves = "hideAvailableMoves",
-
-  // showTransformationOptions = "showTransformationOptions",
-  // transformationPieceTypeSelected = "transformationPieceTypeSelected",
-
   gameEnded = "gameEnded",
 }

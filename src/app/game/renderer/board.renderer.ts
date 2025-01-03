@@ -29,19 +29,102 @@ export class BoardRenderer {
     }
   }
 
-  addHighlight(scene: Phaser.Scene, x: number, y: number) {
+  // addHighlight(scene: Phaser.Scene, x: number, y: number) {
+  //   const { canvasX, canvasY } = coordinateToTileCoordinate(
+  //     x,
+  //     y,
+  //     this.sizeConfig
+  //   );
+  //   // return scene.add.rectangle(
+  //   //   canvasX,
+  //   //   canvasY,
+  //   //   this.sizeConfig.tileSize,
+  //   //   this.sizeConfig.tileSize,
+  //   //   0x0000ff,
+  //   //   0.5
+  //   // );
+
+  //   const circle = scene.add.circle(
+  //     canvasX,
+  //     canvasY,
+  //     this.sizeConfig.tileSize / 2, // radius
+  //     0x0000ff, // fill color (ignored if alpha = 0)
+  //     0 // fill alpha => 0 means fully transparent
+  //   );
+
+  //   // Set the stroke to 2px and the same color (or any color you want)
+  //   circle.setStrokeStyle(2, 0x0000ff);
+  //   return circle;
+  // }
+
+  hightlightCapture(scene: Phaser.Scene, x: number, y: number) {
     const { canvasX, canvasY } = coordinateToTileCoordinate(
       x,
       y,
       this.sizeConfig
     );
-    return scene.add.rectangle(
+
+    const circle = scene.add.circle(
       canvasX,
       canvasY,
-      this.sizeConfig.tileSize,
-      this.sizeConfig.tileSize,
-      0x0000ff,
-      0.5
+      this.sizeConfig.tileSize / 2,
+      // this.sizeConfig.tileSize,
+      0xff0000,
+      0
     );
+    circle.setStrokeStyle(2, 0xff0000);
+    return circle;
+  }
+
+  hightlightMove(scene: Phaser.Scene, x: number, y: number) {
+    const { canvasX, canvasY } = coordinateToTileCoordinate(
+      x,
+      y,
+      this.sizeConfig
+    );
+
+    const BROWN_COLOR = 0xb88b4a;
+    const YELLOW_COLOR = 0xe4c170;
+
+    const circle = scene.add.circle(
+      canvasX,
+      canvasY,
+      this.sizeConfig.tileSize * 0.4, // slightly smaller radius for visual appeal
+      YELLOW_COLOR,
+      0.3 // 30% opacity for the fill
+    );
+
+    // Add a 3px stroke in a softer yellow tone with near-full opacity
+    circle.setStrokeStyle(3, BROWN_COLOR, 0.8);
+
+    scene.tweens.add({
+      targets: circle,
+      scale: { from: 1, to: 1.05 },
+      duration: 1000,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
+    return circle;
+  }
+
+  hightlightSelectedPiece(scene: Phaser.Scene, x: number, y: number) {
+    const { canvasX, canvasY } = coordinateToTileCoordinate(
+      x,
+      y,
+      this.sizeConfig
+    );
+
+    const circle = scene.add.circle(
+      canvasX,
+      canvasY,
+      this.sizeConfig.tileSize * 0.4, // radius
+      0xe4c170, // fill color (ignored if alpha = 0)
+      0 // fill alpha => 0 means fully transparent
+    );
+
+    // Set the stroke to 2px and the same color (or any color you want)
+    circle.setStrokeStyle(2, 0x00ffff);
+    return circle;
   }
 }
