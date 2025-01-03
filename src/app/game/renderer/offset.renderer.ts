@@ -5,7 +5,7 @@ export type TileDesignConfig = {
   light: number;
 };
 
-export class BoardRenderer {
+export class OffsetRenderer {
   constructor(
     private sizeConfig: BoardSizeConfig,
     private tileDesignConfig: TileDesignConfig

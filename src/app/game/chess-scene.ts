@@ -24,9 +24,7 @@ const YELLOW_COLOR = 0xe4c170;
 const pieceRendererConfig: PieceRendererConfig = {
   [Color.black]: {
     color: "black",
-    // stroke: "white" as any,
     fontSize: "64px",
-    // strokeThickness: 2,
   },
   [Color.white]: {
     color: "white",
@@ -53,7 +51,10 @@ export class ChessScene extends Phaser.Scene {
   private userActionsEventEmitter?: EventTarget;
   private sceneUpdatesEventEmitter: EventTarget = new EventTarget();
 
-  private availableMoveObjects: Phaser.GameObjects.Rectangle[] = [];
+  private availableMoveObjects: (
+    | Phaser.GameObjects.Rectangle
+    | Phaser.GameObjects.Arc
+  )[] = [];
   private stateMachine?: StateMachine;
 
   private boardRender?: BoardRenderer;
@@ -225,7 +226,11 @@ export class ChessScene extends Phaser.Scene {
     // const canvasX = x * this.tileSize + this.tileSize / 2 + this.offset;
     // const canvasY = y * this.tileSize + this.tileSize / 2;
 
-    const selectedPieceObj = this.boardRender!.addHighlight(this, x, y);
+    const selectedPieceObj = this.boardRender!.hightlightSelectedPiece(
+      this,
+      x,
+      y
+    );
     this.availableMoveObjects.push(selectedPieceObj);
   }
 
@@ -247,7 +252,6 @@ export class ChessScene extends Phaser.Scene {
       throw new Error("Board is not initialized in the scene");
     }
 
-    const uniqMoves: { [key in string]: { [key in string]: boolean } } = {};
     actions.forEach((action) => {
       for (const affect of action) {
         // TODO there is space for imporvement
@@ -255,14 +259,17 @@ export class ChessScene extends Phaser.Scene {
         // add better highlight when user mouse is above of the highlited action
         if (isMoveAffect(affect) && affect.userSelected) {
           const [x, y] = this.correctedXY(affect.to[0], affect.to[1]);
-          if (!uniqMoves[y]) {
-            uniqMoves[y] = {};
-          }
-          if (!uniqMoves[y][x]) {
-            uniqMoves[y][x] = true;
-            const availableMoveObj = this.boardRender!.addHighlight(this, x, y);
-            this.availableMoveObjects.push(availableMoveObj);
-          }
+          const availableMoveObj = this.boardRender!.hightlightMove(this, x, y);
+          this.availableMoveObjects.push(availableMoveObj);
+        }
+        if (isKillAffect(affect)) {
+          // const [x, y] = this.correctedXY(affect.from[0], affect.from[1]);
+          // const availableMoveObj = this.boardRender!.hightlightCapture(
+          //   this,
+          //   x,
+          //   y
+          // );
+          // this.availableMoveObjects.push(availableMoveObj);
         }
       }
     });
