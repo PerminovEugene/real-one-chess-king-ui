@@ -78,6 +78,19 @@ class WSClient {
     socket.off(WSServerGameEvent.OpponentWon, onLost);
   }
 
+  subscribeOnOpponentSurrender(onOpponentSurrender: Listener) {
+    socket.on(WSServerGameEvent.OpponentSurrender, onOpponentSurrender);
+  }
+  unsubscribeOnOpponentSurrender(onOpponentSurrender: Listener) {
+    socket.off(WSServerGameEvent.OpponentSurrender, onOpponentSurrender);
+  }
+  subscribeOnSurrenderConfirmed(onSurrenderConfirmed: Listener) {
+    socket.on(WSServerGameEvent.SurrenderConfirmed, onSurrenderConfirmed);
+  }
+  unsubscribeOnSurrenderConfirmed(onSurrenderConfirmed: Listener) {
+    socket.off(WSServerGameEvent.SurrenderConfirmed, onSurrenderConfirmed);
+  }
+
   // actions
 
   sendFindGame() {
@@ -86,6 +99,10 @@ class WSClient {
 
   sendTurn(turn: Turn) {
     socket.emit(WSClientGameEvent.Turn, turn);
+  }
+
+  sendSurrender() {
+    socket.emit(WSClientGameEvent.Surrender);
   }
 }
 const instance = new WSClient();

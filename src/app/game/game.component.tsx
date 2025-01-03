@@ -67,7 +67,7 @@ const GameComponent = ({
         gameInstanceRef.current = null;
       }
     };
-  }, [gameInfo]); // Dependencies ensure effect is stable
+  }, [gameInfo]);
 
   const myColor = gameInfo.yourColor;
   const myName = gameInfo.players[myColor].name;
