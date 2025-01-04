@@ -21,6 +21,8 @@ export default function GamePage() {
   const [isOpponentSurrender, setOpponentSurrender] = useState(false);
   const [inQueue, setInQueue] = useState(false);
   const [gameData, setGameData] = useState<NewGameData | null>(null);
+  const [myTimeOut, setMyTimeOut] = useState(false);
+  const [opponentTimeOut, setOpponentTimeOut] = useState(false);
 
   const onOpponentDisconnected = () => {
     setGameData(null);
@@ -38,6 +40,13 @@ export default function GamePage() {
   const onSurrenderConfirmed = () => {
     setMySurrender(true);
   };
+  const onOpponentTimeOut = () => {
+    setOpponentTimeOut(true);
+  };
+  const onMyTimeOut = () => {
+    setMyTimeOut(true);
+  };
+
   const onGameFound = (data: NewGameData) => {
     setInQueue(false);
     setGameData(data);
@@ -59,6 +68,8 @@ export default function GamePage() {
     wsClientInstance.subscribeOnLostEvent(onLost);
     wsClientInstance.subscribeOnOpponentSurrender(onOpponentSurrender);
     wsClientInstance.subscribeOnSurrenderConfirmed(onSurrenderConfirmed);
+    wsClientInstance.subscribeOnOpponentTimeOut(onOpponentTimeOut);
+    wsClientInstance.subscribeOnYourTimeOut(onMyTimeOut);
     return () => {
       wsClientInstance.unsubscribeOnOpponentDisconnected(
         onOpponentDisconnected
@@ -69,6 +80,8 @@ export default function GamePage() {
       wsClientInstance.unsubscribeOnGameStarted(onGameFound);
       wsClientInstance.unsubscribeOnOpponentSurrender(onOpponentSurrender);
       wsClientInstance.unsubscribeOnSurrenderConfirmed(onSurrenderConfirmed);
+      wsClientInstance.subscribeOnOpponentTimeOut(onOpponentTimeOut);
+      wsClientInstance.subscribeOnYourTimeOut(onMyTimeOut);
     };
   }, []);
 
@@ -114,6 +127,8 @@ export default function GamePage() {
         showOpponentWon={isLost}
         showOpponentSurrender={isOpponentSurrender}
         showMySurrender={isMeSurrender}
+        showMyTimeOut={myTimeOut}
+        showOpponentTimeOut={opponentTimeOut}
       />
       {onlyBoardVisible && (
         <React.Fragment>

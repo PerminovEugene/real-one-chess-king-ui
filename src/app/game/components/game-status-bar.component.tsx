@@ -10,6 +10,8 @@ type GameStatusBarProps = {
   showOpponentWon: boolean;
   showOpponentSurrender: boolean;
   showMySurrender: boolean;
+  showOpponentTimeOut: boolean;
+  showMyTimeOut: boolean;
 };
 
 export function GameStatusBar({
@@ -20,6 +22,8 @@ export function GameStatusBar({
   showOpponentWon,
   showOpponentSurrender,
   showMySurrender,
+  showOpponentTimeOut,
+  showMyTimeOut,
 }: GameStatusBarProps) {
   return (
     <div>
@@ -40,6 +44,8 @@ export function GameStatusBar({
           only beginning.
         </p>
       )}
+      {showOpponentTimeOut && <p>Opponent time out! You won! :D</p>}
+      {showMyTimeOut && <p>Your time out! Opponent won! :|</p>}
     </div>
   );
 }
