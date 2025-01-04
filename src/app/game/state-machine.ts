@@ -49,7 +49,9 @@ export class StateMachine {
       black,
       board,
       [new CheckMateGlobalRule()],
-      this.treeLength
+      this.treeLength,
+      this.gameInfo.timeStart,
+      this.gameInfo.timeLeft
     );
     this.board = board;
 

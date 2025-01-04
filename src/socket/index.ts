@@ -84,11 +84,26 @@ class WSClient {
   unsubscribeOnOpponentSurrender(onOpponentSurrender: Listener) {
     socket.off(WSServerGameEvent.OpponentSurrender, onOpponentSurrender);
   }
+
   subscribeOnSurrenderConfirmed(onSurrenderConfirmed: Listener) {
     socket.on(WSServerGameEvent.SurrenderConfirmed, onSurrenderConfirmed);
   }
   unsubscribeOnSurrenderConfirmed(onSurrenderConfirmed: Listener) {
     socket.off(WSServerGameEvent.SurrenderConfirmed, onSurrenderConfirmed);
+  }
+
+  subscribeOnYourTimeOut(onYourTimeOut: Listener) {
+    socket.on(WSServerGameEvent.YourTimeOut, onYourTimeOut);
+  }
+  unsubscribeOnYourTimeOut(onYourTimeOut: Listener) {
+    socket.off(WSServerGameEvent.YourTimeOut, onYourTimeOut);
+  }
+
+  subscribeOnOpponentTimeOut(onOpponentTimeOut: Listener) {
+    socket.on(WSServerGameEvent.OpponentTimeOut, onOpponentTimeOut);
+  }
+  unsubscribeOnOpponentTimeOut(onOpponentTimeOut: Listener) {
+    socket.off(WSServerGameEvent.OpponentTimeOut, onOpponentTimeOut);
   }
 
   // actions

@@ -3,12 +3,14 @@
 import React, { useEffect, useRef } from "react";
 import {
   BoardMeta,
+  Color,
   NewPlayerGameData,
   reverseColor,
 } from "@real_one_chess_king/game-logic";
 import Phaser from "phaser";
 import { ChessScene } from "./chess-scene";
 import PieceSelectionComponent from "./piece-selection.component";
+import { PlayerTimerComponent } from "./components/player-timer.component";
 
 export type NewGameData = {
   boardMeta: BoardMeta;
@@ -73,15 +75,36 @@ const GameComponent = ({
   const myName = gameInfo.players[myColor].name;
   const opponentColor = reverseColor(myColor);
   const opponentName = gameInfo.players[opponentColor].name;
+  const opponentTimeLeft = gameInfo.timeLeft[opponentColor];
+  const myTimeLeft = gameInfo.timeLeft[myColor];
+  const myColorWhite = myColor === Color.white;
 
   return (
     <div>
-      <p>{opponentName}</p>
+      <div className="flex justify-between items-center w-full">
+        <p className="font-semibold">{opponentName}</p>
+
+        <PlayerTimerComponent
+          timeLeft={opponentTimeLeft}
+          initialIsActive={!myColorWhite}
+          activeOnMyTurn={false}
+          timeStart={gameInfo.timeStart}
+        />
+      </div>
       <PieceSelectionComponent
         userActionsEventEmitter={userActionsEventEmitter}
       />
       <div id="game-container" ref={phaserGameRef}></div>
-      <div>{myName}</div>
+      <div className="flex justify-between items-center w-full">
+        <p className="font-semibold">{myName}</p>
+
+        <PlayerTimerComponent
+          timeLeft={myTimeLeft}
+          initialIsActive={myColorWhite}
+          activeOnMyTurn={true}
+          timeStart={gameInfo.timeStart}
+        />
+      </div>
     </div>
   );
 };

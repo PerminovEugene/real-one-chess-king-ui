@@ -273,33 +273,6 @@ export class ChessScene extends Phaser.Scene {
         }
       }
     });
-    // .filter(([x, y]) => {
-    //   if (!uniqMoves[y]) {
-    //     uniqMoves[y] = {};
-    //     return true;
-    //   }
-    //   if (!uniqMoves[y][x]) {
-    //     uniqMoves[y][x] = true;
-    //     return true;
-    //   }
-    //   return false;
-    // })
-    // .forEach(([x, y]) => {
-    //   if (this.gameInfo.yourColor === Color.white) {
-    //     y = 7 - y;
-    //     x = 7 - x;
-    //   }
-
-    //   // some availableMoves can have similar coords if user need to pick something else
-    //   if (
-    //     this.availableMoveObjects.find((obj) => obj.x === x && obj.y === y)
-    //   ) {
-    //     return;
-    //   }
-
-    //   const availableMoveObj = this.boardRender!.addHighlight(this, x, y);
-    //   this.availableMoveObjects.push(availableMoveObj);
-    // });
   }
   destoryAvailableMoves() {
     this.availableMoveObjects.forEach((obj) => obj.destroy());
