@@ -1,5 +1,8 @@
 export function formatMillisecondsToMMSS(milliseconds: number): string {
   // Convert total milliseconds to total seconds (integer)
+  if (milliseconds < 0) {
+    return "00:00";
+  }
   const totalSeconds = Math.floor(milliseconds / 1000);
 
   // Determine whole minutes

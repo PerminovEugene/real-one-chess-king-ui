@@ -88,6 +88,7 @@ const GameComponent = ({
           timeLeft={opponentTimeLeft}
           initialIsActive={!myColorWhite}
           activeOnMyTurn={false}
+          timeStart={gameInfo.timeStart}
         />
       </div>
       <PieceSelectionComponent
@@ -101,6 +102,7 @@ const GameComponent = ({
           timeLeft={myTimeLeft}
           initialIsActive={myColorWhite}
           activeOnMyTurn={true}
+          timeStart={gameInfo.timeStart}
         />
       </div>
     </div>

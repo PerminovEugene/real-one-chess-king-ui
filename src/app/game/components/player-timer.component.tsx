@@ -8,16 +8,31 @@ type OpponentTimerProps = {
   timeLeft: number;
   initialIsActive: boolean;
   activeOnMyTurn: boolean;
+  timeStart: string;
 };
 
 export function PlayerTimerComponent({
   timeLeft,
   initialIsActive,
   activeOnMyTurn,
+  timeStart,
 }: OpponentTimerProps) {
   const [isActive, setIsActive] = React.useState(initialIsActive);
+  const [isCountdown, setCountdown] = React.useState(true);
+  const expectedStart = new Date(timeStart);
+  const beforeStart = expectedStart.getTime() - new Date().getTime();
 
   useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (beforeStart > 0) {
+      setCountdown(true);
+      timer = setTimeout(() => {
+        setCountdown(false);
+      }, beforeStart);
+    } else {
+      setCountdown(false);
+    }
+
     const onOpponentTurn = () => {
       setIsActive(activeOnMyTurn);
     };
@@ -25,7 +40,9 @@ export function PlayerTimerComponent({
       setIsActive(!activeOnMyTurn);
     };
     const onGameEnd = () => {
-      setIsActive(false);
+      setTimeout(() => {
+        setIsActive(false);
+      }, 1000);
     };
 
     wsClientInstance.subscribeOnOpponentTurn(onOpponentTurn);
@@ -40,6 +57,7 @@ export function PlayerTimerComponent({
     wsClientInstance.subscribeOnYourTimeOut(onGameEnd);
 
     return () => {
+      clearTimeout(timer);
       wsClientInstance.unsubscribeOnOpponentTurn(onOpponentTurn);
       wsClientInstance.unsubscribeOnTurnConfirmed(onTurnConfirmed);
 
@@ -53,5 +71,13 @@ export function PlayerTimerComponent({
     };
   }, []);
 
-  return <TimerComponent timeLeft={timeLeft} isActive={isActive} />;
+  return isCountdown && isActive ? (
+    <TimerComponent
+      key="countdown"
+      timeLeft={beforeStart}
+      isActive={isActive}
+    />
+  ) : (
+    <TimerComponent key="timer" timeLeft={timeLeft} isActive={isActive} />
+  );
 }
